@@ -34,8 +34,21 @@ User Config (~/.config/personal-orchestrator/config.yaml)
 ```bash
 npm install
 npm run build
-npm run dev  # Run with tsx for development
+npm run dev   # Run with tsx for development
+npm test      # Run tests (vitest)
 ```
+
+## Testing
+
+Tests live in `tests/` and cover:
+- **Config loading** — File not found, invalid YAML, schema validation, path expansion
+- **Routing** — Tool registration, disabled packages, orchestrator_status always available
+- **Schema sync** — Parameter existence, bounds matching with domain packages
+- **Integration** — Graceful degradation when packages not built
+
+**Running tests:** `npm test`
+
+**Pre-commit hook:** Runs tests automatically before commits.
 
 ## Configuration
 
