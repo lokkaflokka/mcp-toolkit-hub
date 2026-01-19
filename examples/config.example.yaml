@@ -1,0 +1,34 @@
+# MCP Personal Orchestrator Configuration
+#
+# This file registers domain packages and their tools.
+# Copy to ~/.config/mcp-personal/config.yaml and customize.
+
+schema_version: "1.0"
+
+packages:
+  # Each package entry needs:
+  # - path: absolute path to the built package (must have dist/server/index.js)
+  # - enabled: true/false to enable/disable the package's tools
+
+  # Example: Newsletter review package
+  newsletter:
+    path: ~/path/to/mcp-newsletter-review
+    enabled: true
+
+  # Example: Travel booking package
+  travel:
+    path: ~/path/to/mcp-travel
+    enabled: false
+
+  # Add your own packages here:
+  # my-package:
+  #   path: ~/path/to/my-package
+  #   enabled: true
+
+settings:
+  # Prefix tool names with package name (e.g., newsletter_run_weekly_digest)
+  # Recommended: true (prevents naming conflicts between packages)
+  tool_prefix: true
+
+  # Log tool invocations for debugging
+  log_invocations: false

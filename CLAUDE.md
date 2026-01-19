@@ -2,21 +2,23 @@
 
 ```yaml
 _context:
-  tier: personal  # Not distributable - personal orchestration layer
+  tier: distributable  # MCP package for others to use
   version: 0.1.0
-  last_updated: 2026-01-18
+  last_updated: 2026-01-19
 ```
 
-Personal orchestrator MCP server that aggregates tools from domain packages.
+MCP hub server that aggregates tools from multiple domain packages into a single globally-available interface.
 
 ## Purpose
 
 This package provides a **hub** that exposes tools from multiple domain packages (newsletter-review, travel, etc.) through a single MCP server. When configured at the user level, tools work globally regardless of which directory Claude Code is started from.
 
+**Why a hub?** Without it, each MCP package needs separate configuration, and tools only work in specific project directories. The hub pattern gives you one config, global availability.
+
 ## Architecture
 
 ```
-User Config (~/.config/personal-orchestrator/config.yaml)
+User Config (~/.config/mcp-personal/config.yaml)
          ↓
    mcp-personal (this package)
          ↓
@@ -25,7 +27,7 @@ User Config (~/.config/personal-orchestrator/config.yaml)
 
 ## Key Constraints
 
-- **Personal only** — This package is NOT distributable. It lives in `~/mcp_personal_dev/mcp-personal/`, not `mcp-authored/`.
+- **Distributable** — Generic orchestration logic; user config is personal
 - **Delegates, doesn't duplicate** — Business logic stays in domain packages. This package only routes.
 - **Namespaced tools** — Tools are prefixed with package name: `newsletter_run_weekly_digest` (underscores, not colons — MCP spec limitation)
 
@@ -52,21 +54,28 @@ Tests live in `tests/` and cover:
 
 ## Configuration
 
-User config at `~/.config/personal-orchestrator/config.yaml`:
+User config at `~/.config/mcp-personal/config.yaml`:
 
 ```yaml
 schema_version: "1.0"
 packages:
   newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review
+    path: ~/path/to/mcp-newsletter-review  # Your local path
     enabled: true
   travel:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-travel
-    enabled: false  # Not yet integrated
+    path: ~/path/to/mcp-travel
+    enabled: false
 ```
+
+See `examples/config.example.yaml` for a full template.
 
 ## Adding to Claude Code
 
 Configure at user level via `/mcp` command:
 - Command: `node`
-- Args: `~/mcp_personal_dev/mcp-personal/dist/server/index.js`
+- Args: `/path/to/mcp-personal/dist/server/index.js`
+
+Or via CLI:
+```bash
+claude mcp add -s user personal node /path/to/mcp-personal/dist/server/index.js
+```
