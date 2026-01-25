@@ -35,6 +35,7 @@ export class PersonalOrchestratorServer {
     loadConfig: any;
     loadSourcesConfig: any;
     GmailSource: any;
+    GmailClient: any;
     scoreContentItems: any;
     selectForBriefing: any;
     deduplicateItems: any;
@@ -88,10 +89,11 @@ export class PersonalOrchestratorServer {
    */
   private async loadNewsletterModules(): Promise<void> {
     try {
-      const [configLoader, sourcesConfig, sources, scoring, dedup, state] = await Promise.all([
+      const [configLoader, sourcesConfig, sources, gmailClient, scoring, dedup, state] = await Promise.all([
         import(`${NEWSLETTER_PACKAGE}/services/config-loader.js`),
         import(`${NEWSLETTER_PACKAGE}/lib/sources-config.js`),
         import(`${NEWSLETTER_PACKAGE}/sources/index.js`),
+        import(`${NEWSLETTER_PACKAGE}/services/gmail-client.js`),
         import(`${NEWSLETTER_PACKAGE}/lib/scoring.js`),
         import(`${NEWSLETTER_PACKAGE}/lib/dedup.js`),
         import(`${NEWSLETTER_PACKAGE}/lib/state.js`),
@@ -101,6 +103,7 @@ export class PersonalOrchestratorServer {
         loadConfig: configLoader.loadConfig,
         loadSourcesConfig: sourcesConfig.loadSourcesConfig,
         GmailSource: sources.GmailSource,
+        GmailClient: gmailClient.GmailClient,
         scoreContentItems: scoring.scoreContentItems,
         selectForBriefing: scoring.selectForBriefing,
         deduplicateItems: dedup.deduplicateItems,
@@ -238,6 +241,29 @@ export class PersonalOrchestratorServer {
           }
           lines.push(`**Seen items tracked:** ${summary.seenItemsCount}`);
           return { content: [{ type: 'text', text: lines.join('\n') }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // newsletter_health_check
+    this.server.tool(
+      'newsletter_health_check',
+      'Pre-flight check for newsletter digest: validates Gmail OAuth token and RSS feed freshness. Run this before weekly digest to catch issues early.',
+      {
+        rss_stale_days: z
+          .number()
+          .int()
+          .min(1)
+          .max(14)
+          .optional()
+          .describe('Number of days after which RSS is considered stale (default: 3)'),
+      },
+      async (args) => {
+        try {
+          const result = await this.runHealthCheck(args);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         } catch (error) {
           return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
         }
@@ -390,6 +416,108 @@ export class PersonalOrchestratorServer {
     const selected = results.filter((r: any) => r.bucket !== 'skip').slice(0, maxItems);
 
     return this.formatRssBriefing(selected, results.length);
+  }
+
+  /**
+   * Run pre-flight health check for all content sources
+   */
+  private async runHealthCheck(args: { rss_stale_days?: number }): Promise<{
+    ready: boolean;
+    gmail: { status: 'ok' | 'error'; email?: string; error?: string; action?: string };
+    rss: { status: 'ok' | 'stale' | 'error'; lastUpdated?: string; daysStale?: number; itemCount?: number; error?: string; action?: string };
+    warnings: string[];
+  }> {
+    const modules = this.newsletterModules!;
+    const staleDaysThreshold = args.rss_stale_days ?? 3;
+    const warnings: string[] = [];
+
+    // Check Gmail
+    const gmailClient = new modules.GmailClient();
+    let gmailStatus: { status: 'ok' | 'error'; email?: string; error?: string; action?: string };
+
+    const hasToken = await gmailClient.hasToken();
+    if (!hasToken) {
+      gmailStatus = {
+        status: 'error',
+        error: 'No OAuth token found',
+        action: 'Run: cd ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review && npm run auth:gmail',
+      };
+      warnings.push('Gmail: No OAuth token. Authentication required.');
+    } else {
+      const verify = await gmailClient.verifyToken();
+      if (verify.valid) {
+        gmailStatus = { status: 'ok', email: verify.email };
+      } else {
+        gmailStatus = {
+          status: 'error',
+          error: verify.error ?? 'Token invalid',
+          action: 'Run: cd ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review && npm run auth:gmail',
+        };
+        warnings.push(`Gmail: ${verify.error ?? 'Token invalid'}. Re-authentication required.`);
+      }
+    }
+
+    // Check RSS freshness (from gist URL)
+    const sourcesConfig = await modules.loadSourcesConfig();
+    let rssStatus: { status: 'ok' | 'stale' | 'error'; lastUpdated?: string; daysStale?: number; itemCount?: number; error?: string; action?: string };
+
+    if (!sourcesConfig.rss_state_url) {
+      rssStatus = {
+        status: 'error',
+        error: 'No RSS state URL configured',
+        action: 'Configure rss_state_url in ~/.newsletter-mcp/config/sources.yaml',
+      };
+      warnings.push('RSS: No state URL configured.');
+    } else {
+      try {
+        const response = await fetch(sourcesConfig.rss_state_url, {
+          headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
+        });
+
+        if (!response.ok) {
+          rssStatus = {
+            status: 'error',
+            error: `Failed to fetch RSS state: ${response.status} ${response.statusText}`,
+            action: 'Check n8n workflow and gist URL',
+          };
+          warnings.push(`RSS: Failed to fetch state (${response.status}).`);
+        } else {
+          const state = await response.json() as { last_updated: string; items: any[] };
+          const lastUpdated = new Date(state.last_updated);
+          const daysStale = Math.floor((Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (daysStale >= staleDaysThreshold) {
+            rssStatus = {
+              status: 'stale',
+              lastUpdated: state.last_updated,
+              daysStale,
+              itemCount: state.items.length,
+              action: 'Check n8n workflow - may need to run manually or publish/schedule it',
+            };
+            warnings.push(`RSS: Stale by ${daysStale} days (last updated: ${lastUpdated.toLocaleDateString()}). Check n8n workflow.`);
+          } else {
+            rssStatus = {
+              status: 'ok',
+              lastUpdated: state.last_updated,
+              daysStale,
+              itemCount: state.items.length,
+            };
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        rssStatus = {
+          status: 'error',
+          error: message,
+          action: 'Check network and gist URL',
+        };
+        warnings.push(`RSS: ${message}`);
+      }
+    }
+
+    const ready = gmailStatus.status === 'ok' && (rssStatus.status === 'ok' || rssStatus.status === 'stale');
+
+    return { ready, gmail: gmailStatus, rss: rssStatus, warnings };
   }
 
   private formatUnifiedBriefing(
