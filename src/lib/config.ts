@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as yaml from 'yaml';
 import { z } from 'zod';
 
-const CONFIG_DIR = path.join(os.homedir(), '.config', 'mcp-personal');
+const CONFIG_DIR = path.join(os.homedir(), '.config', 'mcp-toolkit-hub');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
 
 const PackageConfigSchema = z.object({

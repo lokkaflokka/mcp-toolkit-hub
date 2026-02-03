@@ -1,5 +1,5 @@
 /**
- * Schema Sync Tests for mcp-personal
+ * Schema Sync Tests for mcp-toolkit-hub
  *
  * Tests that verify orchestrator schema stays in sync with domain packages:
  * - Parameter existence across packages

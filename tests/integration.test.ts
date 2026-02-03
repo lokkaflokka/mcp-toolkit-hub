@@ -1,5 +1,5 @@
 /**
- * Integration Tests for mcp-personal
+ * Integration Tests for mcp-toolkit-hub
  *
  * Tests system-level behavior:
  * - Graceful degradation when package modules are not built

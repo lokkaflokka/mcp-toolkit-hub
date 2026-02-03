@@ -18,9 +18,9 @@ This package provides a **hub** that exposes tools from multiple domain packages
 ## Architecture
 
 ```
-User Config (~/.config/mcp-personal/config.yaml)
+User Config (~/.config/mcp-toolkit-hub/config.yaml)
          ↓
-   mcp-personal (this package)
+   mcp-toolkit-hub (this package)
          ↓
    Domain Packages (mcp-newsletter-review, mcp-travel, etc.)
 ```
@@ -54,7 +54,7 @@ Tests live in `tests/` and cover:
 
 ## Configuration
 
-User config at `~/.config/mcp-personal/config.yaml`:
+User config at `~/.config/mcp-toolkit-hub/config.yaml`:
 
 ```yaml
 schema_version: "1.0"
@@ -73,9 +73,9 @@ See `examples/config.example.yaml` for a full template.
 
 Configure at user level via `/mcp` command:
 - Command: `node`
-- Args: `/path/to/mcp-personal/dist/server/index.js`
+- Args: `/path/to/mcp-toolkit-hub/dist/server/index.js`
 
 Or via CLI:
 ```bash
-claude mcp add -s user personal node /path/to/mcp-personal/dist/server/index.js
+claude mcp add -s user personal node /path/to/mcp-toolkit-hub/dist/server/index.js
 ```

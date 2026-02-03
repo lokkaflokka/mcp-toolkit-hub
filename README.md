@@ -1,4 +1,4 @@
-# mcp-personal
+# mcp-toolkit-hub
 
 MCP hub server that aggregates tools from multiple domain packages into a single globally-available interface.
 
@@ -17,9 +17,9 @@ Without a hub, each MCP package needs separate configuration, and tools only wor
 ## Architecture
 
 ```
-User Config (~/.config/mcp-personal/config.yaml)
+User Config (~/.config/mcp-toolkit-hub/config.yaml)
          ↓
-   mcp-personal (this package)
+   mcp-toolkit-hub (this package)
          ↓
    Domain Packages (mcp-newsletter-review, mcp-travel, etc.)
 ```
@@ -34,25 +34,25 @@ User Config (~/.config/mcp-personal/config.yaml)
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/lokkaflokka/mcp-personal.git
-cd mcp-personal
+git clone https://github.com/lokkaflokka/mcp-toolkit-hub.git
+cd mcp-toolkit-hub
 npm install
 
 # 2. Create your config
-mkdir -p ~/.config/mcp-personal
-cp examples/config.example.yaml ~/.config/mcp-personal/config.yaml
+mkdir -p ~/.config/mcp-toolkit-hub
+cp examples/config.example.yaml ~/.config/mcp-toolkit-hub/config.yaml
 # Edit config.yaml with paths to your domain packages
 
 # 3. Build
 npm run build
 
 # 4. Add to Claude Code (user-level for global availability)
-claude mcp add -s user personal node /path/to/mcp-personal/dist/server/index.js
+claude mcp add -s user personal node /path/to/mcp-toolkit-hub/dist/server/index.js
 ```
 
 ## Configuration
 
-Edit `~/.config/mcp-personal/config.yaml`:
+Edit `~/.config/mcp-toolkit-hub/config.yaml`:
 
 ```yaml
 schema_version: "1.0"

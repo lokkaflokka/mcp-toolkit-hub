@@ -27,17 +27,17 @@ Hub orchestrator for personal MCP packages.
 - [ ] Dynamic discovery (scan directory for packages)
 - [ ] Per-package enable/disable via tool call
 - [ ] Metrics/logging for tool call frequency
-- [ ] Rename: "mcp-personal" → TBD (see below)
+- [ ] Rename: "mcp-toolkit-hub" → TBD (see below)
 
 ## Rename Discussion
 
-The repo is public but the name "mcp-personal" sends a mixed signal — it's a generic orchestrator pattern, not personal-data-specific. Rename candidates:
+The repo is public but the name "mcp-toolkit-hub" sends a mixed signal — it's a generic orchestrator pattern, not personal-data-specific. Rename candidates:
 
 - `mcp-orchestrator` — clear role, but generic (many orchestrators exist)
 - `mcp-hub` — short, describes the aggregation pattern
 - `mcp-toolkit-hub` — more specific
 
-**Decision:** Deferred until distribution architecture pass. The rename touches: GitHub repo, package.json name, PROJECTS.md registry, Claude Code MCP config, orchestrator config path (`~/.config/mcp-personal/`). Do it once, do it right.
+**Decision:** Deferred until distribution architecture pass. The rename touches: GitHub repo, package.json name, PROJECTS.md registry, Claude Code MCP config, orchestrator config path (`~/.config/mcp-toolkit-hub/`). Do it once, do it right.
 
 ## Non-Goals
 

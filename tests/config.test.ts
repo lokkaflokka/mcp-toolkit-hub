@@ -1,5 +1,5 @@
 /**
- * Config Loading Tests for mcp-personal
+ * Config Loading Tests for mcp-toolkit-hub
  *
  * Tests the config loader behavior for various scenarios:
  * - Config file not found

@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release
-- Personal orchestrator hub aggregating domain package tools
+- Toolkit hub aggregating domain package tools
 - Newsletter digest and RSS digest tool wrappers
 - Content feed status tool
 - YAML-based configuration

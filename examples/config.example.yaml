@@ -1,7 +1,7 @@
-# MCP Personal Orchestrator Configuration
+# MCP Toolkit Hub Configuration
 #
 # This file registers domain packages and their tools.
-# Copy to ~/.config/mcp-personal/config.yaml and customize.
+# Copy to ~/.config/mcp-toolkit-hub/config.yaml and customize.
 
 schema_version: "1.0"
 

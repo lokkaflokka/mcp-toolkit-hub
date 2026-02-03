@@ -1,5 +1,5 @@
 {
-  "name": "mcp-personal",
+  "name": "mcp-toolkit-hub",
   "version": "0.2.0",
   "description": "Personal orchestrator MCP server - aggregates domain package tools",
   "type": "module",

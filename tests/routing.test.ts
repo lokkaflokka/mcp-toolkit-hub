@@ -1,5 +1,5 @@
 /**
- * Routing Tests for mcp-personal
+ * Routing Tests for mcp-toolkit-hub
  *
  * Tests the generic routing behavior for any package:
  * - Tool registration when enabled
