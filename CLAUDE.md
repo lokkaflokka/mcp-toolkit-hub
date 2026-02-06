@@ -3,7 +3,7 @@
 ```yaml
 _context:
   tier: distributable  # MCP package for others to use
-  version: 0.3.0
+  version: 0.4.0
   last_updated: 2026-02-05
 ```
 
