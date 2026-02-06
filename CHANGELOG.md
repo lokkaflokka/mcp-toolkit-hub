@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-05
+
+### Added
+
+- **`orchestrator_health` tool** — Aggregates health across hub: config status, per-package load status with validation details, delegated health checks from domain packages. Returns structured JSON with overall status (ready/degraded/unhealthy).
+- **Config validation on startup** — Checks each enabled package: path exists, `dist/` exists, entry point exists. Surfaces actionable errors ("Package not built? Run `npm run build` in [path]").
+- **Actionable load error messages** — Newsletter module load failures now provide specific guidance (not built, not found, or raw error) instead of generic stack traces. Errors surfaced in both `orchestrator_status` and `orchestrator_health`.
+
+### Changed
+
+- Package paths now read from config instead of hardcoded `NEWSLETTER_PACKAGE` constant
+- `orchestrator_status` now shows config errors and per-package load errors
+- Server name updated from `personal-orchestrator` to `mcp-toolkit-hub`
+
 ## [0.3.0] - 2026-02-02
 
 ### Changed

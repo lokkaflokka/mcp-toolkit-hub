@@ -98,3 +98,81 @@ export function getEnabledPackages(config: OrchestratorConfig): Map<string, Pack
   }
   return enabled;
 }
+
+export interface PackageValidationResult {
+  name: string;
+  path: string;
+  enabled: boolean;
+  pathExists: boolean;
+  distExists: boolean;
+  entryPointExists: boolean;
+  error?: string;
+}
+
+/**
+ * Validate enabled packages on startup: check that paths, dist/, and entry points exist.
+ * Returns validation results with actionable error messages.
+ */
+export async function validatePackages(config: OrchestratorConfig): Promise<PackageValidationResult[]> {
+  const results: PackageValidationResult[] = [];
+
+  for (const [name, pkg] of Object.entries(config.packages)) {
+    if (!pkg.enabled) {
+      results.push({
+        name,
+        path: pkg.path,
+        enabled: false,
+        pathExists: false,
+        distExists: false,
+        entryPointExists: false,
+      });
+      continue;
+    }
+
+    const expandedPath = pkg.path;
+    const distPath = path.join(expandedPath, 'dist');
+    const entryPoint = path.join(distPath, 'lib'); // Check dist/lib/ exists
+
+    let pathExists = false;
+    let distExists = false;
+    let entryPointExists = false;
+    let error: string | undefined;
+
+    try {
+      await fs.access(expandedPath);
+      pathExists = true;
+    } catch {
+      error = `Package '${name}' path doesn't exist: ${expandedPath}. Check config at ${CONFIG_FILE}`;
+    }
+
+    if (pathExists) {
+      try {
+        await fs.access(distPath);
+        distExists = true;
+      } catch {
+        error = `Package '${name}' not built: dist/ not found at ${distPath}. Run \`npm run build\` in ${expandedPath}`;
+      }
+    }
+
+    if (distExists) {
+      try {
+        await fs.access(entryPoint);
+        entryPointExists = true;
+      } catch {
+        error = `Package '${name}' missing entry point: ${entryPoint} not found. Run \`npm run build\` in ${expandedPath}`;
+      }
+    }
+
+    results.push({
+      name,
+      path: expandedPath,
+      enabled: true,
+      pathExists,
+      distExists,
+      entryPointExists,
+      error,
+    });
+  }
+
+  return results;
+}

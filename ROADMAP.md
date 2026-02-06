@@ -2,7 +2,7 @@
 
 Hub orchestrator for personal MCP packages.
 
-## Current: v0.2.0 (Stable)
+## Current: v0.4.0 (Robustness)
 
 - [x] Basic hub routing
 - [x] Config-based package registration
@@ -14,12 +14,10 @@ Hub orchestrator for personal MCP packages.
 - [x] Health check tool delegating to newsletter package
 - [x] Delegated digest logic to newsletter package (eliminated duplication)
 - [x] README.md and ROADMAP.md documentation
-
-## Next: v0.3.0 (Robustness)
-
-- [ ] Better error messages when domain packages fail to load
-- [ ] Config validation on startup with actionable errors
-- [ ] Package health check tool (`orchestrator_health`) — aggregate health from all registered packages
+- [x] Renamed from mcp-personal to mcp-toolkit-hub (v0.3.0)
+- [x] Better error messages when domain packages fail to load
+- [x] Config validation on startup with actionable errors
+- [x] Package health check tool (`orchestrator_health`) — aggregate health from all registered packages
 
 ## Future Considerations
 

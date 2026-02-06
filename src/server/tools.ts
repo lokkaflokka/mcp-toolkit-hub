@@ -1,30 +1,30 @@
 /**
- * Personal Orchestrator MCP Tools
+ * Toolkit Hub MCP Tools
  *
  * Aggregates tools from domain packages with namespaced prefixes.
- * Phase 1: Hardcoded newsletter-review integration.
+ * Uses config-driven package paths with actionable error messages.
  */
 
 import * as path from 'path';
-import * as os from 'os';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-import { loadConfig, getEnabledPackages, type OrchestratorConfig } from '../lib/config.js';
+import {
+  loadConfig,
+  getEnabledPackages,
+  validatePackages,
+  type OrchestratorConfig,
+  type PackageValidationResult,
+} from '../lib/config.js';
 
-// Newsletter-review imports (hardcoded for Phase 1)
-// These paths assume the newsletter-review package is built
-const NEWSLETTER_PACKAGE = path.join(
-  os.homedir(),
-  'mcp_personal_dev/mcp-authored/mcp-newsletter-review/dist'
-);
-
-const SERVER_NAME = 'personal-orchestrator';
-const SERVER_VERSION = '0.1.0';
+const SERVER_NAME = 'mcp-toolkit-hub';
+const SERVER_VERSION = '0.4.0';
 
 export class PersonalOrchestratorServer {
   private server: McpServer;
   private config: OrchestratorConfig | null = null;
+  private configError: string | null = null;
+  private packageValidation: PackageValidationResult[] = [];
 
   // Dynamically loaded newsletter modules
   private newsletterModules: {
@@ -33,6 +33,7 @@ export class PersonalOrchestratorServer {
     runRssDigest: (args: any) => Promise<string>;
     runHealthCheck: (args: any) => Promise<any>;
   } | null = null;
+  private newsletterLoadError: string | null = null;
 
   constructor() {
     this.server = new McpServer(
@@ -47,14 +48,15 @@ export class PersonalOrchestratorServer {
   }
 
   /**
-   * Initialize the server - load config and set up tools
+   * Initialize the server - load config, validate packages, and set up tools
    */
   async initialize(): Promise<void> {
     // Load orchestrator config
     try {
       this.config = await loadConfig();
     } catch (error) {
-      console.error('Failed to load orchestrator config:', error);
+      this.configError = error instanceof Error ? error.message : String(error);
+      console.error('Failed to load orchestrator config:', this.configError);
       // Continue with empty config - tools will fail gracefully
       this.config = {
         schema_version: '1.0',
@@ -62,10 +64,19 @@ export class PersonalOrchestratorServer {
       };
     }
 
+    // Validate enabled packages on startup
+    this.packageValidation = await validatePackages(this.config);
+    for (const result of this.packageValidation) {
+      if (result.enabled && result.error) {
+        console.error(`Package validation: ${result.error}`);
+      }
+    }
+
     // Load newsletter-review modules if enabled
     const enabledPackages = getEnabledPackages(this.config);
     if (enabledPackages.has('newsletter')) {
-      await this.loadNewsletterModules();
+      const newsletterConfig = enabledPackages.get('newsletter')!;
+      await this.loadNewsletterModules(newsletterConfig.path);
     }
 
     // Set up tools
@@ -74,13 +85,15 @@ export class PersonalOrchestratorServer {
   }
 
   /**
-   * Dynamically import newsletter-review modules
+   * Dynamically import newsletter-review modules using config-driven path
    */
-  private async loadNewsletterModules(): Promise<void> {
+  private async loadNewsletterModules(packagePath: string): Promise<void> {
+    const distPath = path.join(packagePath, 'dist');
+
     try {
       const [state, digest] = await Promise.all([
-        import(`${NEWSLETTER_PACKAGE}/lib/state.js`),
-        import(`${NEWSLETTER_PACKAGE}/lib/digest.js`),
+        import(`${distPath}/lib/state.js`),
+        import(`${distPath}/lib/digest.js`),
       ]);
 
       this.newsletterModules = {
@@ -92,7 +105,18 @@ export class PersonalOrchestratorServer {
 
       console.error('Newsletter modules loaded successfully');
     } catch (error) {
-      console.error('Failed to load newsletter modules:', error);
+      const message = error instanceof Error ? error.message : String(error);
+
+      // Provide actionable error messages
+      if (message.includes('Cannot find module') || message.includes('ERR_MODULE_NOT_FOUND')) {
+        this.newsletterLoadError = `Package not built? Run \`npm run build\` in ${packagePath}`;
+      } else if (message.includes('ENOENT')) {
+        this.newsletterLoadError = `Package not found at ${packagePath}. Check config path.`;
+      } else {
+        this.newsletterLoadError = `Failed to load: ${message}`;
+      }
+
+      console.error(`Newsletter module load error: ${this.newsletterLoadError}`);
       this.newsletterModules = null;
     }
   }
@@ -110,21 +134,117 @@ export class PersonalOrchestratorServer {
       {},
       async () => {
         const lines: string[] = [];
-        lines.push('## Personal Orchestrator Status\n');
+        lines.push('## Toolkit Hub Status\n');
         lines.push(`**Version:** ${SERVER_VERSION}`);
-        lines.push(`**Config loaded:** ${this.config ? 'Yes' : 'No'}\n`);
+        lines.push(`**Config loaded:** ${this.config && !this.configError ? 'Yes' : 'No'}`);
+        if (this.configError) {
+          lines.push(`**Config error:** ${this.configError}`);
+        }
+        lines.push('');
 
         if (this.config) {
           lines.push('### Packages\n');
           for (const [name, pkg] of Object.entries(this.config.packages)) {
-            const status = pkg.enabled ? (name === 'newsletter' && this.newsletterModules ? '✓ Loaded' : '⚠ Enabled but not loaded') : '○ Disabled';
-            lines.push(`- **${name}**: ${status}`);
+            if (!pkg.enabled) {
+              lines.push(`- **${name}**: ○ Disabled`);
+              continue;
+            }
+
+            // Check if actually loaded
+            const isLoaded = name === 'newsletter' && this.newsletterModules;
+            const loadError = name === 'newsletter' ? this.newsletterLoadError : null;
+
+            if (isLoaded) {
+              lines.push(`- **${name}**: ✓ Loaded`);
+            } else if (loadError) {
+              lines.push(`- **${name}**: ✗ Failed to load`);
+              lines.push(`  Error: ${loadError}`);
+            } else {
+              lines.push(`- **${name}**: ⚠ Enabled but not loaded`);
+            }
             lines.push(`  Path: ${pkg.path}`);
           }
         }
 
         return {
           content: [{ type: 'text', text: lines.join('\n') }],
+        };
+      }
+    );
+
+    // Health check tool: aggregate health from all packages
+    this.server.tool(
+      'orchestrator_health',
+      'Aggregate health check across the toolkit hub: config status, package load status, and delegated health checks from domain packages.',
+      {},
+      async () => {
+        const health: {
+          status: 'ready' | 'degraded' | 'unhealthy';
+          config: { loaded: boolean; error?: string };
+          packages: Record<string, {
+            enabled: boolean;
+            loaded: boolean;
+            loadError?: string;
+            validation?: { pathExists: boolean; distExists: boolean; entryPointExists: boolean; error?: string };
+            healthCheck?: any;
+          }>;
+        } = {
+          status: 'ready',
+          config: {
+            loaded: this.config !== null && this.configError === null,
+            error: this.configError || undefined,
+          },
+          packages: {},
+        };
+
+        if (this.configError) {
+          health.status = 'unhealthy';
+        }
+
+        // Check each package
+        if (this.config) {
+          for (const [name, pkg] of Object.entries(this.config.packages)) {
+            const validation = this.packageValidation.find((v) => v.name === name);
+            const isLoaded = name === 'newsletter' && this.newsletterModules !== null;
+            const loadError = name === 'newsletter' ? this.newsletterLoadError : null;
+
+            health.packages[name] = {
+              enabled: pkg.enabled,
+              loaded: isLoaded,
+              loadError: loadError || undefined,
+              validation: validation
+                ? {
+                    pathExists: validation.pathExists,
+                    distExists: validation.distExists,
+                    entryPointExists: validation.entryPointExists,
+                    error: validation.error,
+                  }
+                : undefined,
+            };
+
+            // Run delegated health check if package is loaded and has one
+            if (name === 'newsletter' && this.newsletterModules) {
+              try {
+                const delegatedHealth = await this.newsletterModules.runHealthCheck({});
+                health.packages[name].healthCheck = delegatedHealth;
+              } catch (error) {
+                health.packages[name].healthCheck = {
+                  error: error instanceof Error ? error.message : String(error),
+                };
+              }
+            }
+
+            // Determine overall status
+            if (pkg.enabled && !isLoaded) {
+              if (health.status === 'ready') {
+                health.status = 'degraded';
+              }
+            }
+          }
+        }
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(health, null, 2) }],
         };
       }
     );
@@ -269,11 +389,11 @@ export class PersonalOrchestratorServer {
     const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Personal Orchestrator MCP Server started');
+    console.error('Toolkit Hub MCP Server started');
   }
 
   async stop(): Promise<void> {
     await this.server.close();
-    console.error('Personal Orchestrator MCP Server stopped');
+    console.error('Toolkit Hub MCP Server stopped');
   }
 }

@@ -120,7 +120,7 @@ packages:
       expect(toolNames).toContain('orchestrator_status');
     });
 
-    it('should register orchestrator_status tool regardless of package configuration', async () => {
+    it('should register orchestrator_status and orchestrator_health tools regardless of package configuration', async () => {
       // Empty packages config
       const configYaml = `
 schema_version: "1.0"
@@ -134,10 +134,11 @@ packages: {}
 
       await server.initialize();
 
-      // Verify orchestrator_status is registered
+      // Verify orchestrator tools are registered
       const toolNames = mockTool.mock.calls.map((call) => call[0]);
 
       expect(toolNames).toContain('orchestrator_status');
+      expect(toolNames).toContain('orchestrator_health');
     });
   });
 });
