@@ -51,13 +51,13 @@ describe('Routing', () => {
   });
 
   describe('Tool Registration', () => {
-    it('should register newsletter tools when newsletter package is enabled', async () => {
-      // Set up config with newsletter enabled
+    it('should register briefing tools when briefing package is enabled', async () => {
+      // Set up config with briefing enabled
       const configYaml = `
 schema_version: "1.0"
 packages:
-  newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review
+  briefing:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
     enabled: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(configYaml);
@@ -66,39 +66,38 @@ packages:
       const { PersonalOrchestratorServer } = await import('../src/server/tools.js');
       const server = new PersonalOrchestratorServer();
 
-      // Mock the newsletter module loading to avoid actual file system access
-      // @ts-expect-error - accessing private method for testing
-      server.newsletterModules = {
-        loadConfig: vi.fn(),
-        loadSourcesConfig: vi.fn(),
-        GmailSource: vi.fn(),
-        scoreContentItems: vi.fn(),
-        selectForBriefing: vi.fn(),
-        deduplicateItems: vi.fn(),
-        getPendingRssItems: vi.fn(),
-        clearPendingRssItems: vi.fn(),
-        markItemsSeen: vi.fn(),
+      // Mock the briefing module loading to avoid actual file system access
+      // @ts-expect-error - accessing private property for testing
+      server.briefingModules = {
         getStateSummary: vi.fn(),
+        appendSavedItem: vi.fn(),
+        appendSavedItems: vi.fn(),
+        getSavedItemCount: vi.fn(),
+        runWeeklyDigest: vi.fn(),
+        runRssDigest: vi.fn(),
+        runHealthCheck: vi.fn(),
       };
 
       await server.initialize();
 
-      // Verify that tool() was called for newsletter tools
+      // Verify that tool() was called for briefing tools
       const toolNames = mockTool.mock.calls.map((call) => call[0]);
 
-      expect(toolNames).toContain('newsletter_run_weekly_digest');
-      expect(toolNames).toContain('newsletter_run_rss_digest');
-      expect(toolNames).toContain('newsletter_content_feed_status');
+      expect(toolNames).toContain('briefing_run_weekly_digest');
+      expect(toolNames).toContain('briefing_run_rss_digest');
+      expect(toolNames).toContain('briefing_content_feed_status');
+      expect(toolNames).toContain('briefing_save_for_later');
+      expect(toolNames).toContain('briefing_import_read_later');
       expect(toolNames).toContain('orchestrator_status');
     });
 
-    it('should not register newsletter tools when newsletter package is disabled', async () => {
-      // Set up config with newsletter disabled
+    it('should not register briefing tools when briefing package is disabled', async () => {
+      // Set up config with briefing disabled
       const configYaml = `
 schema_version: "1.0"
 packages:
-  newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review
+  briefing:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
     enabled: false
 `;
       vi.mocked(fs.readFile).mockResolvedValue(configYaml);
@@ -109,12 +108,12 @@ packages:
 
       await server.initialize();
 
-      // Verify that newsletter-specific tools were NOT registered
+      // Verify that briefing-specific tools were NOT registered
       const toolNames = mockTool.mock.calls.map((call) => call[0]);
 
-      expect(toolNames).not.toContain('newsletter_run_weekly_digest');
-      expect(toolNames).not.toContain('newsletter_run_rss_digest');
-      expect(toolNames).not.toContain('newsletter_content_feed_status');
+      expect(toolNames).not.toContain('briefing_run_weekly_digest');
+      expect(toolNames).not.toContain('briefing_run_rss_digest');
+      expect(toolNames).not.toContain('briefing_content_feed_status');
 
       // But orchestrator_status should still be registered
       expect(toolNames).toContain('orchestrator_status');

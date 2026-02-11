@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-02-10
+
+### Added
+
+- **`briefing_save_for_later` tool** — Delegates to content-feed package's `appendSavedItem()` for saving URLs
+- **`briefing_import_read_later` tool** — Imports URLs from Apple Reminders "Read Later" list via `remindctl`, appends to saved-items state. Platform-specific tool kept in toolkit-hub (not in distributed package).
+- Saved items count displayed in `briefing_content_feed_status`
+
+### Changed
+
+- **Renamed tool prefix** from `newsletter_` to `briefing_` — All delegated content-feed tools now use `briefing_` namespace
+- **Config key migration** — Supports both `briefing` and legacy `newsletter` config keys for backwards compatibility
+- Module loading updated: `newsletterModules` → `briefingModules`, with expanded interface for saved item state functions
+
 ## [0.4.0] - 2026-02-05
 
 ### Added

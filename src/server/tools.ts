@@ -18,7 +18,7 @@ import {
 } from '../lib/config.js';
 
 const SERVER_NAME = 'mcp-toolkit-hub';
-const SERVER_VERSION = '0.4.0';
+const SERVER_VERSION = '0.5.0';
 
 export class PersonalOrchestratorServer {
   private server: McpServer;
@@ -26,14 +26,17 @@ export class PersonalOrchestratorServer {
   private configError: string | null = null;
   private packageValidation: PackageValidationResult[] = [];
 
-  // Dynamically loaded newsletter modules
-  private newsletterModules: {
+  // Dynamically loaded content-feed (formerly newsletter) modules
+  private briefingModules: {
     getStateSummary: any;
+    appendSavedItem: (item: any) => Promise<number>;
+    appendSavedItems: (items: any[]) => Promise<number>;
+    getSavedItemCount: () => Promise<number>;
     runWeeklyDigest: (args: any) => Promise<string>;
     runRssDigest: (args: any) => Promise<string>;
     runHealthCheck: (args: any) => Promise<any>;
   } | null = null;
-  private newsletterLoadError: string | null = null;
+  private briefingLoadError: string | null = null;
 
   constructor() {
     this.server = new McpServer(
@@ -72,11 +75,11 @@ export class PersonalOrchestratorServer {
       }
     }
 
-    // Load newsletter-review modules if enabled
+    // Load content-feed modules if enabled (supports both 'briefing' and legacy 'newsletter' config keys)
     const enabledPackages = getEnabledPackages(this.config);
-    if (enabledPackages.has('newsletter')) {
-      const newsletterConfig = enabledPackages.get('newsletter')!;
-      await this.loadNewsletterModules(newsletterConfig.path);
+    const briefingConfig = enabledPackages.get('briefing') ?? enabledPackages.get('newsletter');
+    if (briefingConfig) {
+      await this.loadBriefingModules(briefingConfig.path);
     }
 
     // Set up tools
@@ -85,9 +88,9 @@ export class PersonalOrchestratorServer {
   }
 
   /**
-   * Dynamically import newsletter-review modules using config-driven path
+   * Dynamically import content-feed modules using config-driven path
    */
-  private async loadNewsletterModules(packagePath: string): Promise<void> {
+  private async loadBriefingModules(packagePath: string): Promise<void> {
     const distPath = path.join(packagePath, 'dist');
 
     try {
@@ -96,35 +99,42 @@ export class PersonalOrchestratorServer {
         import(`${distPath}/lib/digest.js`),
       ]);
 
-      this.newsletterModules = {
+      this.briefingModules = {
         getStateSummary: state.getStateSummary,
+        appendSavedItem: state.appendSavedItem,
+        appendSavedItems: state.appendSavedItems,
+        getSavedItemCount: state.getSavedItemCount,
         runWeeklyDigest: digest.runWeeklyDigest,
         runRssDigest: digest.runRssDigest,
         runHealthCheck: digest.runHealthCheck,
       };
 
-      console.error('Newsletter modules loaded successfully');
+      console.error('Content-feed modules loaded successfully');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
       // Provide actionable error messages
       if (message.includes('Cannot find module') || message.includes('ERR_MODULE_NOT_FOUND')) {
-        this.newsletterLoadError = `Package not built? Run \`npm run build\` in ${packagePath}`;
+        this.briefingLoadError = `Package not built? Run \`npm run build\` in ${packagePath}`;
       } else if (message.includes('ENOENT')) {
-        this.newsletterLoadError = `Package not found at ${packagePath}. Check config path.`;
+        this.briefingLoadError = `Package not found at ${packagePath}. Check config path.`;
       } else {
-        this.newsletterLoadError = `Failed to load: ${message}`;
+        this.briefingLoadError = `Failed to load: ${message}`;
       }
 
-      console.error(`Newsletter module load error: ${this.newsletterLoadError}`);
-      this.newsletterModules = null;
+      console.error(`Content-feed module load error: ${this.briefingLoadError}`);
+      this.briefingModules = null;
     }
   }
 
+  private isBriefingPackage(name: string): boolean {
+    return name === 'briefing' || name === 'newsletter';
+  }
+
   private setupTools(): void {
-    // Newsletter tools (namespaced with newsletter_)
-    if (this.newsletterModules) {
-      this.setupNewsletterTools();
+    // Content-feed tools (namespaced with briefing_)
+    if (this.briefingModules) {
+      this.setupBriefingTools();
     }
 
     // Meta tool: list available tools
@@ -151,8 +161,8 @@ export class PersonalOrchestratorServer {
             }
 
             // Check if actually loaded
-            const isLoaded = name === 'newsletter' && this.newsletterModules;
-            const loadError = name === 'newsletter' ? this.newsletterLoadError : null;
+            const isLoaded = this.isBriefingPackage(name) && this.briefingModules;
+            const loadError = this.isBriefingPackage(name) ? this.briefingLoadError : null;
 
             if (isLoaded) {
               lines.push(`- **${name}**: ✓ Loaded`);
@@ -205,8 +215,8 @@ export class PersonalOrchestratorServer {
         if (this.config) {
           for (const [name, pkg] of Object.entries(this.config.packages)) {
             const validation = this.packageValidation.find((v) => v.name === name);
-            const isLoaded = name === 'newsletter' && this.newsletterModules !== null;
-            const loadError = name === 'newsletter' ? this.newsletterLoadError : null;
+            const isLoaded = this.isBriefingPackage(name) && this.briefingModules !== null;
+            const loadError = this.isBriefingPackage(name) ? this.briefingLoadError : null;
 
             health.packages[name] = {
               enabled: pkg.enabled,
@@ -223,9 +233,9 @@ export class PersonalOrchestratorServer {
             };
 
             // Run delegated health check if package is loaded and has one
-            if (name === 'newsletter' && this.newsletterModules) {
+            if (this.isBriefingPackage(name) && this.briefingModules) {
               try {
-                const delegatedHealth = await this.newsletterModules.runHealthCheck({});
+                const delegatedHealth = await this.briefingModules.runHealthCheck({});
                 health.packages[name].healthCheck = delegatedHealth;
               } catch (error) {
                 health.packages[name].healthCheck = {
@@ -250,13 +260,13 @@ export class PersonalOrchestratorServer {
     );
   }
 
-  private setupNewsletterTools(): void {
-    const modules = this.newsletterModules!;
+  private setupBriefingTools(): void {
+    const modules = this.briefingModules!;
 
-    // newsletter_run_weekly_digest
+    // briefing_run_weekly_digest
     this.server.tool(
-      'newsletter_run_weekly_digest',
-      'Run unified weekly digest: fetch Gmail newsletters + accumulated RSS items, score all together, deduplicate across sources, and output a briefing.',
+      'briefing_run_weekly_digest',
+      'Run unified weekly digest: fetch Gmail newsletters + accumulated RSS items + saved items, score all together, deduplicate across sources, and output a briefing.',
       {
         days_back: z
           .number()
@@ -291,9 +301,9 @@ export class PersonalOrchestratorServer {
       }
     );
 
-    // newsletter_run_rss_digest
+    // briefing_run_rss_digest
     this.server.tool(
-      'newsletter_run_rss_digest',
+      'briefing_run_rss_digest',
       'Score just the accumulated RSS items without touching Gmail. Useful for checking new content between full digests.',
       {
         max_items: z
@@ -314,10 +324,10 @@ export class PersonalOrchestratorServer {
       }
     );
 
-    // newsletter_content_feed_status
+    // briefing_content_feed_status
     this.server.tool(
-      'newsletter_content_feed_status',
-      'Get status of the unified content feed: pending RSS items, seen items count, last update times.',
+      'briefing_content_feed_status',
+      'Get status of the unified content feed: pending RSS items, saved items, seen items count, last update times.',
       {},
       async () => {
         try {
@@ -336,6 +346,18 @@ export class PersonalOrchestratorServer {
               })}`
             );
           }
+          lines.push(`**Saved items pending:** ${summary.savedItemCount}`);
+          if (summary.savedItemsLastUpdated) {
+            lines.push(
+              `**Last saved:** ${summary.savedItemsLastUpdated.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}`
+            );
+          }
           lines.push(`**Seen items tracked:** ${summary.seenItemsCount}`);
           return { content: [{ type: 'text', text: lines.join('\n') }] };
         } catch (error) {
@@ -344,10 +366,10 @@ export class PersonalOrchestratorServer {
       }
     );
 
-    // newsletter_health_check
+    // briefing_health_check
     this.server.tool(
-      'newsletter_health_check',
-      'Pre-flight check for newsletter digest: validates Gmail OAuth token and RSS feed freshness. Run this before weekly digest to catch issues early.',
+      'briefing_health_check',
+      'Pre-flight check for content digest: validates Gmail OAuth token, RSS feed freshness, and saved items status. Run this before weekly digest to catch issues early.',
       {
         rss_stale_days: z
           .number()
@@ -361,6 +383,128 @@ export class PersonalOrchestratorServer {
         try {
           const result = await modules.runHealthCheck(args);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // briefing_save_for_later
+    this.server.tool(
+      'briefing_save_for_later',
+      'Save a URL for inclusion in the next weekly digest. Items are scored alongside Gmail and RSS content.',
+      {
+        url: z.string().url().describe('The URL to save'),
+        title: z.string().optional().describe('Title of the article (optional)'),
+        tags: z.array(z.string()).optional().describe('Tags for categorization (e.g., ["engineering", "ml"])'),
+        notes: z.string().optional().describe('Context about why this was saved'),
+      },
+      async (args) => {
+        try {
+          const now = new Date();
+          const item = {
+            id: `saved:${now.getTime()}`,
+            title: args.title ?? args.url,
+            body: '',
+            author: '',
+            date: now,
+            source: { type: 'saved' as const, id: 'saved:manual', name: 'Saved' },
+            url: args.url,
+            tags: args.tags,
+          };
+
+          const totalCount = await modules.appendSavedItem(item);
+
+          const lines: string[] = [];
+          lines.push(`Saved for next digest: **${item.title}**`);
+          lines.push(`URL: ${args.url}`);
+          if (args.tags?.length) lines.push(`Tags: ${args.tags.join(', ')}`);
+          if (args.notes) lines.push(`Notes: ${args.notes}`);
+          lines.push(`\nTotal pending saved items: ${totalCount}`);
+
+          return { content: [{ type: 'text', text: lines.join('\n') }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // briefing_import_read_later
+    this.server.tool(
+      'briefing_import_read_later',
+      'Import saved URLs from the Apple Reminders "Read Later" list into the digest pipeline. Returns imported items so Claude can complete the reminders via AppleScript.',
+      {},
+      async () => {
+        try {
+          const { exec } = await import('child_process');
+          const { promisify } = await import('util');
+          const execAsync = promisify(exec);
+
+          let stdout: string;
+          try {
+            const result = await execAsync('remindctl list "Read Later"');
+            stdout = result.stdout;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message.includes('not found') || message.includes('ENOENT')) {
+              return { content: [{ type: 'text', text: 'remindctl not available. Install apple-reminders-toolkit to use this feature.' }] };
+            }
+            return { content: [{ type: 'text', text: `Error reading reminders: ${message}` }] };
+          }
+
+          const lines = stdout.trim().split('\n').filter((l: string) => l.trim());
+          if (lines.length === 0) {
+            return { content: [{ type: 'text', text: 'No items in "Read Later" list.' }] };
+          }
+
+          const openItems = lines.filter((l: string) => l.includes('[ ]'));
+          if (openItems.length === 0) {
+            return { content: [{ type: 'text', text: 'No open items in "Read Later" list.' }] };
+          }
+
+          const urlRegex = /https?:\/\/[^\s\]]+/g;
+          const importedItems: any[] = [];
+          const importedDetails: { title: string; url: string }[] = [];
+
+          for (const line of openItems) {
+            const urls = line.match(urlRegex);
+            if (!urls || urls.length === 0) continue;
+
+            const url = urls[0];
+            const titleMatch = line.match(/\[ \]\s+(.+?)(?:\s+https?:\/\/|\s+\[Read Later\])/);
+            const title = titleMatch?.[1]?.trim() ?? url;
+
+            const now = new Date();
+            importedItems.push({
+              id: `saved:readlater:${now.getTime()}:${importedItems.length}`,
+              title,
+              body: '',
+              author: '',
+              date: now,
+              source: { type: 'saved', id: 'saved:read-later', name: 'Read Later' },
+              url,
+              tags: undefined,
+            });
+            importedDetails.push({ title, url });
+          }
+
+          if (importedItems.length === 0) {
+            return { content: [{ type: 'text', text: 'No URLs found in "Read Later" items.' }] };
+          }
+
+          const newCount = await modules.appendSavedItems(importedItems);
+
+          const resultLines: string[] = [];
+          resultLines.push('## Imported from Read Later\n');
+          resultLines.push(`**${newCount} new items** imported (${importedItems.length - newCount} duplicates skipped)\n`);
+          for (const detail of importedDetails) {
+            resultLines.push(`- **${detail.title}**`);
+            resultLines.push(`  ${detail.url}`);
+          }
+          resultLines.push(`\n**Next step:** Complete these reminders in Apple Reminders via AppleScript.`);
+          resultLines.push(`Total pending saved items: ${await modules.getSavedItemCount()}`);
+
+          return { content: [{ type: 'text', text: resultLines.join('\n') }] };
         } catch (error) {
           return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
         }

@@ -46,13 +46,13 @@ describe('Integration', () => {
   });
 
   describe('Module Loading', () => {
-    it('should gracefully handle when newsletter package is not built', async () => {
-      // Set up config with newsletter enabled
+    it('should gracefully handle when briefing package is not built', async () => {
+      // Set up config with briefing enabled but pointing to nonexistent path
       const configYaml = `
 schema_version: "1.0"
 packages:
-  newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review
+  briefing:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed-nonexistent
     enabled: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(configYaml);

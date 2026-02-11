@@ -30,7 +30,7 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
 }));
 
 /**
- * Expected schema for newsletter_run_weekly_digest tool
+ * Expected schema for briefing_run_weekly_digest tool
  * This documents what parameters the orchestrator SHOULD expose
  */
 const EXPECTED_WEEKLY_DIGEST_SCHEMA = {
@@ -65,7 +65,7 @@ const EXPECTED_WEEKLY_DIGEST_SCHEMA = {
 };
 
 /**
- * Expected schema for newsletter_run_rss_digest tool
+ * Expected schema for briefing_run_rss_digest tool
  */
 const EXPECTED_RSS_DIGEST_SCHEMA = {
   max_items: {
@@ -80,7 +80,7 @@ const EXPECTED_RSS_DIGEST_SCHEMA = {
 
 describe('Schema Sync', () => {
   describe('Parameter Existence', () => {
-    it('newsletter_run_weekly_digest should expose all expected parameters', async () => {
+    it('briefing_run_weekly_digest should expose all expected parameters', async () => {
       // This test verifies the schema definition matches expectations
       // by checking against documented expected parameters
 
@@ -123,7 +123,7 @@ describe('Schema Sync', () => {
       expect(schemaParams.sort()).toEqual(expectedParams.sort());
     });
 
-    it('newsletter_run_rss_digest should expose all expected parameters', async () => {
+    it('briefing_run_rss_digest should expose all expected parameters', async () => {
       const expectedSchema = z.object({
         max_items: z
           .number()
