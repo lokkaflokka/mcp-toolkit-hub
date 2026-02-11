@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-02-11
+
+### Fixed
+
+- **`briefing_import_read_later`** — Switched from `remindctl` to AppleScript for reading Read Later items, gaining access to the notes/body field. URLs saved via iOS Shortcut (in notes field) are now detected and imported. Title-only items (no URL) are surfaced for manual resolution instead of silently skipped.
+
 ## [0.5.0] - 2026-02-10
 
 ### Added

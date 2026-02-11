@@ -440,44 +440,66 @@ export class PersonalOrchestratorServer {
           const { promisify } = await import('util');
           const execAsync = promisify(exec);
 
+          // Use AppleScript to read reminders with notes (remindctl doesn't expose notes/body)
+          // Note: body returns "missing value" string when empty, not an error
+          const appleScript = `
+            tell application "Reminders"
+              set rl to list "Read Later"
+              set output to ""
+              repeat with r in (reminders of rl whose completed is false)
+                set rName to name of r
+                set rBody to ""
+                try
+                  set b to body of r
+                  if b is not missing value then set rBody to b
+                end try
+                set output to output & rName & "\\t" & rBody & "\\n"
+              end repeat
+              return output
+            end tell`;
+
           let stdout: string;
           try {
-            const result = await execAsync('remindctl list "Read Later"');
-            stdout = result.stdout;
+            const result = await execAsync(`osascript -e '${appleScript.replace(/'/g, "'\\''")}'`);
+            stdout = result.stdout.trim();
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            if (message.includes('not found') || message.includes('ENOENT')) {
-              return { content: [{ type: 'text', text: 'remindctl not available. Install apple-reminders-toolkit to use this feature.' }] };
-            }
-            return { content: [{ type: 'text', text: `Error reading reminders: ${message}` }] };
+            return { content: [{ type: 'text', text: `Error reading Read Later reminders: ${message}` }] };
           }
 
-          const lines = stdout.trim().split('\n').filter((l: string) => l.trim());
-          if (lines.length === 0) {
-            return { content: [{ type: 'text', text: 'No items in "Read Later" list.' }] };
-          }
-
-          const openItems = lines.filter((l: string) => l.includes('[ ]'));
-          if (openItems.length === 0) {
+          if (!stdout) {
             return { content: [{ type: 'text', text: 'No open items in "Read Later" list.' }] };
           }
 
-          const urlRegex = /https?:\/\/[^\s\]]+/g;
+          const urlRegex = /https?:\/\/[^\s]+/g;
           const importedItems: any[] = [];
           const importedDetails: { title: string; url: string }[] = [];
+          const needsUrl: string[] = [];
 
-          for (const line of openItems) {
-            const urls = line.match(urlRegex);
-            if (!urls || urls.length === 0) continue;
+          const lines = stdout.split('\n').filter((l: string) => l.trim());
+          for (const line of lines) {
+            const [title, notes] = line.split('\t').map((s: string) => s.trim());
+            if (!title) continue;
+
+            // Check both title and notes for URLs
+            const allText = `${title} ${notes || ''}`;
+            const urls = allText.match(urlRegex);
+
+            if (!urls || urls.length === 0) {
+              needsUrl.push(title);
+              continue;
+            }
 
             const url = urls[0];
-            const titleMatch = line.match(/\[ \]\s+(.+?)(?:\s+https?:\/\/|\s+\[Read Later\])/);
-            const title = titleMatch?.[1]?.trim() ?? url;
+            // If URL was in the title, use the notes or cleaned title as display title
+            const displayTitle = notes?.match(urlRegex)
+              ? title  // URL is in notes, title is clean
+              : title.replace(urlRegex, '').trim() || url;  // URL is in title, clean it
 
             const now = new Date();
             importedItems.push({
               id: `saved:readlater:${now.getTime()}:${importedItems.length}`,
-              title,
+              title: displayTitle,
               body: '',
               author: '',
               date: now,
@@ -485,22 +507,37 @@ export class PersonalOrchestratorServer {
               url,
               tags: undefined,
             });
-            importedDetails.push({ title, url });
+            importedDetails.push({ title: displayTitle, url });
           }
 
-          if (importedItems.length === 0) {
-            return { content: [{ type: 'text', text: 'No URLs found in "Read Later" items.' }] };
+          if (importedItems.length === 0 && needsUrl.length === 0) {
+            return { content: [{ type: 'text', text: 'No items in "Read Later" list.' }] };
           }
 
-          const newCount = await modules.appendSavedItems(importedItems);
+          let newCount = 0;
+          if (importedItems.length > 0) {
+            newCount = await modules.appendSavedItems(importedItems);
+          }
 
           const resultLines: string[] = [];
           resultLines.push('## Imported from Read Later\n');
-          resultLines.push(`**${newCount} new items** imported (${importedItems.length - newCount} duplicates skipped)\n`);
-          for (const detail of importedDetails) {
-            resultLines.push(`- **${detail.title}**`);
-            resultLines.push(`  ${detail.url}`);
+
+          if (importedItems.length > 0) {
+            resultLines.push(`**${newCount} new items** imported (${importedItems.length - newCount} duplicates skipped)\n`);
+            for (const detail of importedDetails) {
+              resultLines.push(`- **${detail.title}**`);
+              resultLines.push(`  ${detail.url}`);
+            }
           }
+
+          if (needsUrl.length > 0) {
+            resultLines.push(`\n**${needsUrl.length} item(s) need URL resolution** (title only, no URL found):\n`);
+            for (const title of needsUrl) {
+              resultLines.push(`- ${title}`);
+            }
+            resultLines.push(`\nUse web search to find URLs, then save via \`briefing_save_for_later\`.`);
+          }
+
           resultLines.push(`\n**Next step:** Complete these reminders in Apple Reminders via AppleScript.`);
           resultLines.push(`Total pending saved items: ${await modules.getSavedItemCount()}`);
 
