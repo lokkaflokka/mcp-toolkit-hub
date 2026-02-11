@@ -441,7 +441,8 @@ export class PersonalOrchestratorServer {
           const execAsync = promisify(exec);
 
           // Use AppleScript to read reminders with notes (remindctl doesn't expose notes/body)
-          // Note: body returns "missing value" string when empty, not an error
+          // Note: body returns "missing value" as a value, not an error — test with `is not missing value`
+          // Uses ||| delimiter instead of tab to avoid breakage if titles contain tabs
           const appleScript = `
             tell application "Reminders"
               set rl to list "Read Later"
@@ -453,7 +454,7 @@ export class PersonalOrchestratorServer {
                   set b to body of r
                   if b is not missing value then set rBody to b
                 end try
-                set output to output & rName & "\\t" & rBody & "\\n"
+                set output to output & rName & "|||" & rBody & "\\n"
               end repeat
               return output
             end tell`;
@@ -478,7 +479,7 @@ export class PersonalOrchestratorServer {
 
           const lines = stdout.split('\n').filter((l: string) => l.trim());
           for (const line of lines) {
-            const [title, notes] = line.split('\t').map((s: string) => s.trim());
+            const [title, notes] = line.split('|||').map((s: string) => s.trim());
             if (!title) continue;
 
             // Check both title and notes for URLs
@@ -538,8 +539,31 @@ export class PersonalOrchestratorServer {
             resultLines.push(`\nUse web search to find URLs, then save via \`briefing_save_for_later\`.`);
           }
 
-          resultLines.push(`\n**Next step:** Complete these reminders in Apple Reminders via AppleScript.`);
-          resultLines.push(`Total pending saved items: ${await modules.getSavedItemCount()}`);
+          // Auto-complete successfully imported reminders
+          if (importedDetails.length > 0) {
+            const completeTitles = importedDetails.map(d => d.title);
+            const completeScript = `
+              tell application "Reminders"
+                set rl to list "Read Later"
+                repeat with r in (reminders of rl whose completed is false)
+                  set rName to name of r
+                  ${completeTitles.map(t => `if rName is ${JSON.stringify(t)} then set completed of r to true`).join('\n                  ')}
+                end repeat
+              end tell
+              "Done"`;
+            try {
+              await execAsync(`osascript -e '${completeScript.replace(/'/g, "'\\''")}'`);
+              resultLines.push(`\n**${importedDetails.length} reminder(s) auto-completed** in Read Later.`);
+            } catch {
+              resultLines.push(`\n**Note:** Could not auto-complete reminders. Complete them manually via AppleScript.`);
+            }
+          }
+
+          if (needsUrl.length > 0) {
+            resultLines.push(`**${needsUrl.length} title-only item(s) remain open** in Read Later (need URL resolution first).`);
+          }
+
+          resultLines.push(`\nTotal pending saved items: ${await modules.getSavedItemCount()}`);
 
           return { content: [{ type: 'text', text: resultLines.join('\n') }] };
         } catch (error) {
