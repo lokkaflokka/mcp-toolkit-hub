@@ -10,9 +10,9 @@ packages:
   # - path: absolute path to the built package (must have dist/server/index.js)
   # - enabled: true/false to enable/disable the package's tools
 
-  # Example: Newsletter review package
-  newsletter:
-    path: ~/path/to/mcp-newsletter-review
+  # Example: Content briefing package (Gmail + RSS + saved URLs)
+  briefing:
+    path: ~/path/to/mcp-content-feed
     enabled: true
 
   # Example: Travel booking package
@@ -26,7 +26,7 @@ packages:
   #   enabled: true
 
 settings:
-  # Prefix tool names with package name (e.g., newsletter_run_weekly_digest)
+  # Prefix tool names with package name (e.g., briefing_run_weekly_digest)
   # Recommended: true (prevents naming conflicts between packages)
   tool_prefix: true
 

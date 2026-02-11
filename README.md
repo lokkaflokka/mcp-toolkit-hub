@@ -12,7 +12,7 @@ Without a hub, each MCP package needs separate configuration, and tools only wor
 
 - **One config** — Single `config.yaml` lists all your domain packages
 - **Global availability** — Tools work regardless of which directory Claude Code starts from
-- **Namespace clarity** — Tools prefixed by domain: `newsletter_run_weekly_digest`, `travel_search_flights`
+- **Namespace clarity** — Tools prefixed by domain: `briefing_run_weekly_digest`, `travel_search_flights`
 
 ## Architecture
 
@@ -21,7 +21,7 @@ User Config (~/.config/mcp-toolkit-hub/config.yaml)
          ↓
    mcp-toolkit-hub (this package)
          ↓
-   Domain Packages (mcp-newsletter-review, mcp-travel, etc.)
+   Domain Packages (mcp-content-feed, mcp-travel, etc.)
 ```
 
 ## Prerequisites
@@ -57,8 +57,8 @@ Edit `~/.config/mcp-toolkit-hub/config.yaml`:
 ```yaml
 schema_version: "1.0"
 packages:
-  newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review
+  briefing:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
     enabled: true
   travel:
     path: ~/mcp_personal_dev/mcp-authored/mcp-travel
@@ -74,9 +74,9 @@ The hub exposes tools from enabled domain packages, plus:
 | `orchestrator_status` | Shows which packages are loaded and available |
 
 Domain package tools are namespaced:
-- `newsletter_run_weekly_digest`
-- `newsletter_run_rss_digest`
-- `newsletter_content_feed_status`
+- `briefing_run_weekly_digest`
+- `briefing_run_rss_digest`
+- `briefing_content_feed_status`
 - `travel_search_flights` (when enabled)
 
 ## Development
@@ -96,7 +96,7 @@ npm test       # Run tests
 
 ## Related Packages
 
-- [mcp-newsletter-review](https://github.com/lokkaflokka/mcp-newsletter-review) — Newsletter scoring and briefing
+- [mcp-content-feed](https://github.com/lokkaflokka/mcp-content-feed) — Content scoring and briefing (Gmail + RSS + saved URLs)
 - [mcp-travel](https://github.com/lokkaflokka/mcp-travel) — Flight search and price tracking
 
 ## License

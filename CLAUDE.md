@@ -3,15 +3,15 @@
 ```yaml
 _context:
   tier: distributable  # MCP package for others to use
-  version: 0.4.0
-  last_updated: 2026-02-05
+  version: 0.5.0
+  last_updated: 2026-02-10
 ```
 
 MCP hub server that aggregates tools from multiple domain packages into a single globally-available interface.
 
 ## Purpose
 
-This package provides a **hub** that exposes tools from multiple domain packages (newsletter-review, travel, etc.) through a single MCP server. When configured at the user level, tools work globally regardless of which directory Claude Code is started from.
+This package provides a **hub** that exposes tools from multiple domain packages (content-feed, travel, etc.) through a single MCP server. When configured at the user level, tools work globally regardless of which directory Claude Code is started from.
 
 **Why a hub?** Without it, each MCP package needs separate configuration, and tools only work in specific project directories. The hub pattern gives you one config, global availability.
 
@@ -22,14 +22,14 @@ User Config (~/.config/mcp-toolkit-hub/config.yaml)
          ↓
    mcp-toolkit-hub (this package)
          ↓
-   Domain Packages (mcp-newsletter-review, mcp-travel, etc.)
+   Domain Packages (mcp-content-feed, mcp-travel, etc.)
 ```
 
 ## Key Constraints
 
 - **Distributable** — Generic orchestration logic; user config is personal
 - **Delegates, doesn't duplicate** — Business logic stays in domain packages. This package only routes.
-- **Namespaced tools** — Tools are prefixed with package name: `newsletter_run_weekly_digest` (underscores, not colons — MCP spec limitation)
+- **Namespaced tools** — Tools are prefixed with package name: `briefing_run_weekly_digest` (underscores, not colons — MCP spec limitation)
 
 ## Defensive Coding Standards
 
@@ -53,7 +53,7 @@ This package loads and delegates to other packages — it's the trust boundary b
 **Package Delegation** (`src/server/tools.ts`)
 - Validate package exports exist before calling — a missing export shouldn't crash the hub
 - Handle package load failures gracefully: log the error, mark package as unavailable, continue serving other packages
-- Surface actionable error messages: "Package 'newsletter' failed to load: dist/ not found. Run `npm run build` in [path]"
+- Surface actionable error messages: "Package 'briefing' failed to load: dist/ not found. Run `npm run build` in [path]"
 - Never catch and swallow errors silently — at minimum surface in `orchestrator_status`
 
 **Tool Parameter Passthrough** (`src/server/tools.ts`)
@@ -103,8 +103,8 @@ User config at `~/.config/mcp-toolkit-hub/config.yaml`:
 ```yaml
 schema_version: "1.0"
 packages:
-  newsletter:
-    path: ~/path/to/mcp-newsletter-review  # Your local path
+  briefing:
+    path: ~/path/to/mcp-content-feed  # Your local path
     enabled: true
   travel:
     path: ~/path/to/mcp-travel
