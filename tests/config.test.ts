@@ -81,7 +81,7 @@ packages:
 schema_version: "1.0"
 packages:
   newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-newsletter-review
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
     enabled: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(validConfig);
@@ -90,7 +90,7 @@ packages:
 
       // Path should be expanded to use actual home directory
       expect(config.packages.newsletter.path).toBe(
-        path.join(os.homedir(), 'mcp_personal_dev/mcp-authored/mcp-newsletter-review')
+        path.join(os.homedir(), 'mcp_personal_dev/mcp-authored/mcp-content-feed')
       );
       expect(config.packages.newsletter.path).not.toContain('~');
     });
