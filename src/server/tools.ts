@@ -35,8 +35,20 @@ export class PersonalOrchestratorServer {
     runWeeklyDigest: (args: any) => Promise<string>;
     runRssDigest: (args: any) => Promise<string>;
     runHealthCheck: (args: any) => Promise<any>;
+    clearDigestState: (args: any) => Promise<any>;
   } | null = null;
   private briefingLoadError: string | null = null;
+
+  // Dynamically loaded Google Sheets modules
+  private sheetsModules: {
+    listSheets: (spreadsheetId: string) => Promise<any>;
+    getSheetData: (spreadsheetId: string, range: string) => Promise<any[][]>;
+    updateCells: (spreadsheetId: string, range: string, values: any[][]) => Promise<any>;
+    batchUpdateCells: (spreadsheetId: string, updates: any[]) => Promise<any>;
+    appendRows: (spreadsheetId: string, range: string, values: any[][]) => Promise<any>;
+    createSheet: (spreadsheetId: string, title: string) => Promise<any>;
+  } | null = null;
+  private sheetsLoadError: string | null = null;
 
   constructor() {
     this.server = new McpServer(
@@ -82,6 +94,12 @@ export class PersonalOrchestratorServer {
       await this.loadBriefingModules(briefingConfig.path);
     }
 
+    // Load Google Sheets modules if enabled
+    const sheetsConfig = enabledPackages.get('sheets');
+    if (sheetsConfig) {
+      await this.loadSheetsModules(sheetsConfig.path);
+    }
+
     // Set up tools
     this.setupTools();
     this.setupErrorHandling();
@@ -107,6 +125,7 @@ export class PersonalOrchestratorServer {
         runWeeklyDigest: digest.runWeeklyDigest,
         runRssDigest: digest.runRssDigest,
         runHealthCheck: digest.runHealthCheck,
+        clearDigestState: digest.clearDigestState,
       };
 
       console.error('Content-feed modules loaded successfully');
@@ -131,10 +150,54 @@ export class PersonalOrchestratorServer {
     return name === 'briefing' || name === 'newsletter';
   }
 
+  /**
+   * Dynamically import Google Sheets modules using config-driven path
+   */
+  private async loadSheetsModules(packagePath: string): Promise<void> {
+    const distPath = path.join(packagePath, 'dist');
+
+    try {
+      const api = await import(`${distPath}/lib/api.js`);
+
+      this.sheetsModules = {
+        listSheets: api.listSheets,
+        getSheetData: api.getSheetData,
+        updateCells: api.updateCells,
+        batchUpdateCells: api.batchUpdateCells,
+        appendRows: api.appendRows,
+        createSheet: api.createSheet,
+      };
+
+      console.error('Google Sheets modules loaded successfully');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes('Cannot find module') || message.includes('ERR_MODULE_NOT_FOUND')) {
+        this.sheetsLoadError = `Package not built? Run \`npm run build\` in ${packagePath}`;
+      } else if (message.includes('ENOENT')) {
+        this.sheetsLoadError = `Package not found at ${packagePath}. Check config path.`;
+      } else {
+        this.sheetsLoadError = `Failed to load: ${message}`;
+      }
+
+      console.error(`Google Sheets module load error: ${this.sheetsLoadError}`);
+      this.sheetsModules = null;
+    }
+  }
+
+  private isSheetsPackage(name: string): boolean {
+    return name === 'sheets';
+  }
+
   private setupTools(): void {
     // Content-feed tools (namespaced with briefing_)
     if (this.briefingModules) {
       this.setupBriefingTools();
+    }
+
+    // Google Sheets tools (namespaced with sheets_)
+    if (this.sheetsModules) {
+      this.setupSheetsTools();
     }
 
     // Meta tool: list available tools
@@ -161,8 +224,14 @@ export class PersonalOrchestratorServer {
             }
 
             // Check if actually loaded
-            const isLoaded = this.isBriefingPackage(name) && this.briefingModules;
-            const loadError = this.isBriefingPackage(name) ? this.briefingLoadError : null;
+            const isLoaded =
+              (this.isBriefingPackage(name) && this.briefingModules !== null) ||
+              (this.isSheetsPackage(name) && this.sheetsModules !== null);
+            const loadError = this.isBriefingPackage(name)
+              ? this.briefingLoadError
+              : this.isSheetsPackage(name)
+                ? this.sheetsLoadError
+                : null;
 
             if (isLoaded) {
               lines.push(`- **${name}**: ✓ Loaded`);
@@ -215,8 +284,14 @@ export class PersonalOrchestratorServer {
         if (this.config) {
           for (const [name, pkg] of Object.entries(this.config.packages)) {
             const validation = this.packageValidation.find((v) => v.name === name);
-            const isLoaded = this.isBriefingPackage(name) && this.briefingModules !== null;
-            const loadError = this.isBriefingPackage(name) ? this.briefingLoadError : null;
+            const isLoaded =
+              (this.isBriefingPackage(name) && this.briefingModules !== null) ||
+              (this.isSheetsPackage(name) && this.sheetsModules !== null);
+            const loadError = this.isBriefingPackage(name)
+              ? this.briefingLoadError
+              : this.isSheetsPackage(name)
+                ? this.sheetsLoadError
+                : null;
 
             health.packages[name] = {
               enabled: pkg.enabled,
@@ -290,6 +365,13 @@ export class PersonalOrchestratorServer {
           .boolean()
           .optional()
           .describe('If true, return raw JSON with full item bodies for Claude-driven synthesis instead of formatted markdown (default: false)'),
+        body_max_chars: z
+          .number()
+          .int()
+          .min(500)
+          .max(50000)
+          .optional()
+          .describe('Maximum characters per item body in raw output (default: 4000). Reduces output size for large email bodies.'),
       },
       async (args) => {
         try {
@@ -383,6 +465,38 @@ export class PersonalOrchestratorServer {
         try {
           const result = await modules.runHealthCheck(args);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // briefing_clear_state
+    this.server.tool(
+      'briefing_clear_state',
+      'Clear digest pipeline state (RSS items and/or saved items) without running a full digest. Useful after a digest run where clear_rss_state was false.',
+      {
+        clear_rss: z
+          .boolean()
+          .optional()
+          .describe('Clear accumulated RSS items (default: true)'),
+        clear_saved: z
+          .boolean()
+          .optional()
+          .describe('Clear saved items (default: true)'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.clearDigestState(args);
+          const lines: string[] = [];
+          lines.push('## State Cleared\n');
+          if (result.rss_cleared) {
+            lines.push(`**RSS items cleared:** ${result.rss_count}`);
+          }
+          if (result.saved_cleared) {
+            lines.push(`**Saved items cleared:** ${result.saved_count}`);
+          }
+          return { content: [{ type: 'text', text: lines.join('\n') }] };
         } catch (error) {
           return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
         }
@@ -566,6 +680,122 @@ export class PersonalOrchestratorServer {
           resultLines.push(`\nTotal pending saved items: ${await modules.getSavedItemCount()}`);
 
           return { content: [{ type: 'text', text: resultLines.join('\n') }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+  }
+
+  private setupSheetsTools(): void {
+    const modules = this.sheetsModules!;
+
+    // sheets_list_sheets
+    this.server.tool(
+      'sheets_list_sheets',
+      'List all sheets (tabs) in a Google Spreadsheet, including row/column counts.',
+      {
+        spreadsheet_id: z.string().describe('The Google Spreadsheet ID'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.listSheets(args.spreadsheet_id);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // sheets_get_data
+    this.server.tool(
+      'sheets_get_data',
+      'Get data from a range in a Google Spreadsheet. Returns a 2D array of cell values.',
+      {
+        spreadsheet_id: z.string().describe('The Google Spreadsheet ID'),
+        range: z.string().describe('A1 notation range (e.g., "Sheet1!A1:Z100", "Allocation Calculator!A:Z")'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.getSheetData(args.spreadsheet_id, args.range);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // sheets_update_cells
+    this.server.tool(
+      'sheets_update_cells',
+      'Update cells in a range of a Google Spreadsheet.',
+      {
+        spreadsheet_id: z.string().describe('The Google Spreadsheet ID'),
+        range: z.string().describe('A1 notation range (e.g., "Sheet1!A1:B2")'),
+        values: z.array(z.array(z.any())).describe('2D array of values to write'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.updateCells(args.spreadsheet_id, args.range, args.values);
+          return { content: [{ type: 'text', text: `Updated ${result.updatedCells} cells.` }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // sheets_batch_update
+    this.server.tool(
+      'sheets_batch_update',
+      'Update multiple ranges in a single request.',
+      {
+        spreadsheet_id: z.string().describe('The Google Spreadsheet ID'),
+        updates: z.array(z.object({
+          range: z.string().describe('A1 notation range'),
+          values: z.array(z.array(z.any())).describe('2D array of values'),
+        })).describe('Array of range+values pairs to update'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.batchUpdateCells(args.spreadsheet_id, args.updates);
+          return { content: [{ type: 'text', text: `Updated ${result.totalUpdatedCells} cells across ${args.updates.length} ranges.` }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // sheets_append_rows
+    this.server.tool(
+      'sheets_append_rows',
+      'Append rows to the end of a sheet.',
+      {
+        spreadsheet_id: z.string().describe('The Google Spreadsheet ID'),
+        range: z.string().describe('A1 notation range indicating the sheet (e.g., "Sheet1!A:Z")'),
+        values: z.array(z.array(z.any())).describe('2D array of row values to append'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.appendRows(args.spreadsheet_id, args.range, args.values);
+          return { content: [{ type: 'text', text: `Appended ${result.updatedRows} rows.` }] };
+        } catch (error) {
+          return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
+        }
+      }
+    );
+
+    // sheets_create_sheet
+    this.server.tool(
+      'sheets_create_sheet',
+      'Create a new sheet (tab) in a Google Spreadsheet.',
+      {
+        spreadsheet_id: z.string().describe('The Google Spreadsheet ID'),
+        title: z.string().describe('Name for the new sheet tab'),
+      },
+      async (args) => {
+        try {
+          const result = await modules.createSheet(args.spreadsheet_id, args.title);
+          return { content: [{ type: 'text', text: `Created sheet "${args.title}" (ID: ${result.sheetId})` }] };
         } catch (error) {
           return { content: [{ type: 'text', text: `Error: ${this.formatError(error)}` }] };
         }
