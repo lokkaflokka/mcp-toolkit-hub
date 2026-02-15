@@ -1,6 +1,6 @@
 {
   "name": "mcp-toolkit-hub",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "Personal orchestrator MCP server - aggregates domain package tools",
   "type": "module",
   "main": "dist/server/index.js",
