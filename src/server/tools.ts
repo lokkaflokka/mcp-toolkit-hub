@@ -18,7 +18,7 @@ import {
 } from '../lib/config.js';
 
 const SERVER_NAME = 'mcp-toolkit-hub';
-const SERVER_VERSION = '0.5.0';
+const SERVER_VERSION = '0.5.3';
 
 export class PersonalOrchestratorServer {
   private server: McpServer;
