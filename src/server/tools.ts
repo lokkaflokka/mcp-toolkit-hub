@@ -371,7 +371,11 @@ export class PersonalOrchestratorServer {
           .min(500)
           .max(50000)
           .optional()
-          .describe('Maximum characters per item body in raw output (default: 4000). Reduces output size for large email bodies.'),
+          .describe('Maximum characters per item body in raw output (default: 2000). Reduces output size for large email bodies.'),
+        output_mode: z
+          .enum(['inline', 'file'])
+          .optional()
+          .describe('Output mode: "inline" returns full JSON in response (default), "file" writes JSON to ~/.content-briefing/output/ and returns compact summary with file path.'),
       },
       async (args) => {
         try {
