@@ -131,7 +131,7 @@ export async function validatePackages(config: OrchestratorConfig): Promise<Pack
 
     const expandedPath = pkg.path;
     const distPath = path.join(expandedPath, 'dist');
-    const entryPoint = path.join(distPath, 'lib'); // Check dist/lib/ exists
+    const entryPoint = path.join(distPath, 'lib', 'manifest.js'); // Check manifest exists
 
     let pathExists = false;
     let distExists = false;
@@ -159,7 +159,7 @@ export async function validatePackages(config: OrchestratorConfig): Promise<Pack
         await fs.access(entryPoint);
         entryPointExists = true;
       } catch {
-        error = `Package '${name}' missing entry point: ${entryPoint} not found. Run \`npm run build\` in ${expandedPath}`;
+        error = `Package '${name}' missing manifest: ${entryPoint} not found. Run \`npm run build\` in ${expandedPath}`;
       }
     }
 
