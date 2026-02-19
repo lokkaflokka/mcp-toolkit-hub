@@ -16,6 +16,8 @@ export interface ToolDefinition {
   schema: Record<string, z.ZodType>;
   /** Handler that receives validated args and returns a formatted string result */
   handler: (args: any) => Promise<string>;
+  /** Access level: 'read' (default) or 'write'. Write tools are gated by allow_writes config. */
+  access?: 'read' | 'write';
 }
 
 export interface PackageManifest {

@@ -51,14 +51,15 @@ describe('Routing', () => {
   });
 
   describe('Tool Registration', () => {
-    it('should register briefing tools when briefing package is enabled', async () => {
-      // Set up config with briefing enabled
+    it('should register briefing tools when briefing package is enabled (with writes)', async () => {
+      // Set up config with briefing enabled and writes allowed
       const configYaml = `
 schema_version: "1.0"
 packages:
   briefing:
     path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
     enabled: true
+    allow_writes: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(configYaml);
 
@@ -66,21 +67,9 @@ packages:
       const { PersonalOrchestratorServer } = await import('../src/server/tools.js');
       const server = new PersonalOrchestratorServer();
 
-      // Mock the briefing module loading to avoid actual file system access
-      // @ts-expect-error - accessing private property for testing
-      server.briefingModules = {
-        getStateSummary: vi.fn(),
-        appendSavedItem: vi.fn(),
-        appendSavedItems: vi.fn(),
-        getSavedItemCount: vi.fn(),
-        runWeeklyDigest: vi.fn(),
-        runRssDigest: vi.fn(),
-        runHealthCheck: vi.fn(),
-      };
-
       await server.initialize();
 
-      // Verify that tool() was called for briefing tools
+      // Verify that tool() was called for briefing tools (read + write since allow_writes: true)
       const toolNames = mockTool.mock.calls.map((call) => call[0]);
 
       expect(toolNames).toContain('briefing_run_weekly_digest');

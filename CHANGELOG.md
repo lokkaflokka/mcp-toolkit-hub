@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-02-18
+
+### Added
+
+- **Security hardening — 4 guardrails:**
+  - **Tool allowlist:** `allowed_tools` config restricts which tools a package exposes. Omit for all tools (backwards-compatible).
+  - **Write gating:** Tools tagged `access: 'write'` are hidden unless `allow_writes: true` in package config. Read-only by default.
+  - **Resource scoping:** `resource_scope` config validates a specific parameter (e.g., `spreadsheet_id`) against an allowlist before calling handlers.
+  - **Invocation logging:** `log_invocations` setting enables JSONL logging (stderr or `log_file`). Logs tool name, package, params, success, and duration.
+- Security info in `orchestrator_status` and `orchestrator_health` output
+- `access?: 'read' | 'write'` field on `ToolDefinition` interface
+- `security.test.ts` — 12 tests covering all 4 guardrails + meta tool output
+
+### Changed
+
+- `registerPackageTools` now applies allowlist, write gating, resource scoping, and logging
+- Updated `config.example.yaml` with all new security fields documented
+
 ## [0.5.2] - 2026-02-11
 
 ### Improved

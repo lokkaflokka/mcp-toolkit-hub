@@ -15,17 +15,20 @@
 import * as path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import * as fs from 'fs';
+
 import {
   loadConfig,
   getEnabledPackages,
   validatePackages,
   type OrchestratorConfig,
+  type PackageConfig,
   type PackageValidationResult,
 } from '../lib/config.js';
-import type { PackageManifest } from '../lib/types.js';
+import type { PackageManifest, ToolDefinition } from '../lib/types.js';
 
 const SERVER_NAME = 'mcp-toolkit-hub';
-const SERVER_VERSION = '0.7.0';
+const SERVER_VERSION = '0.8.0';
 
 interface LoadedPackage {
   manifest: PackageManifest;
@@ -39,6 +42,8 @@ export class PersonalOrchestratorServer {
   private packageValidation: PackageValidationResult[] = [];
   private loadedPackages: Map<string, LoadedPackage> = new Map();
   private packageLoadErrors: Map<string, string> = new Map();
+  private logStream: fs.WriteStream | null = null;
+  private skippedTools: Map<string, { allowlisted: string[]; writeGated: string[] }> = new Map();
 
   constructor() {
     this.server = new McpServer(
@@ -82,9 +87,18 @@ export class PersonalOrchestratorServer {
       await this.loadPackageManifest(name, pkg.path);
     }
 
+    // Set up invocation logging
+    if (this.config.settings?.log_invocations) {
+      const logFile = this.config.settings?.log_file;
+      if (logFile) {
+        this.logStream = fs.createWriteStream(logFile, { flags: 'a' });
+      }
+    }
+
     // Register tools from all loaded manifests
     for (const [name, loaded] of this.loadedPackages) {
-      this.registerPackageTools(name, loaded.manifest);
+      const pkgConfig = this.config.packages[name];
+      this.registerPackageTools(name, loaded.manifest, pkgConfig);
     }
 
     // Meta tools (always available)
@@ -153,35 +167,100 @@ export class PersonalOrchestratorServer {
   }
 
   /**
+   * Log a tool invocation in JSONL format.
+   */
+  private logInvocation(
+    packageName: string,
+    toolName: string,
+    params: any,
+    ok: boolean,
+    durationMs: number,
+    error?: string
+  ): void {
+    if (!this.config?.settings?.log_invocations) return;
+
+    const entry: Record<string, any> = {
+      ts: new Date().toISOString(),
+      package: packageName,
+      tool: toolName,
+      params,
+      ok,
+      duration_ms: durationMs,
+    };
+    if (error) entry.error = error;
+
+    const line = JSON.stringify(entry);
+    if (this.logStream) {
+      this.logStream.write(line + '\n');
+    } else {
+      console.error(line);
+    }
+  }
+
+  /**
    * Register all tools from a package manifest, namespaced with the config key.
+   * Applies security guardrails: allowlist, write gating, resource scoping, logging.
    */
   private registerPackageTools(
     packageName: string,
-    manifest: PackageManifest
+    manifest: PackageManifest,
+    pkgConfig: PackageConfig
   ): void {
+    const skipped = { allowlisted: [] as string[], writeGated: [] as string[] };
+
     for (const tool of manifest.tools) {
+      // Guardrail 1: Tool allowlist
+      if (pkgConfig.allowed_tools && !pkgConfig.allowed_tools.includes(tool.name)) {
+        skipped.allowlisted.push(tool.name);
+        continue;
+      }
+
+      // Guardrail 2: Write gating
+      const access = tool.access ?? 'read';
+      if (access === 'write' && !pkgConfig.allow_writes) {
+        skipped.writeGated.push(tool.name);
+        continue;
+      }
+
       const fullName = `${packageName}_${tool.name}`;
+      const resourceScope = pkgConfig.resource_scope;
 
       this.server.tool(
         fullName,
         tool.description,
         tool.schema,
         async (args) => {
+          const start = Date.now();
           try {
+            // Guardrail 3: Resource scoping
+            if (resourceScope) {
+              const paramValue = args[resourceScope.param];
+              if (paramValue !== undefined && !resourceScope.allowed.includes(String(paramValue))) {
+                const msg = `Access denied: ${resourceScope.param} "${paramValue}" is not in the allowed list for package "${packageName}".`;
+                this.logInvocation(packageName, tool.name, args, false, Date.now() - start, msg);
+                return { content: [{ type: 'text', text: msg }] };
+              }
+            }
+
             const result = await tool.handler(args);
+
+            // Guardrail 4: Invocation logging
+            this.logInvocation(packageName, tool.name, args, true, Date.now() - start);
+
             return { content: [{ type: 'text', text: result }] };
           } catch (error) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            this.logInvocation(packageName, tool.name, args, false, Date.now() - start, errMsg);
             return {
-              content: [
-                {
-                  type: 'text',
-                  text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-                },
-              ],
+              content: [{ type: 'text', text: `Error: ${errMsg}` }],
             };
           }
         }
       );
+    }
+
+    if (skipped.allowlisted.length > 0 || skipped.writeGated.length > 0) {
+      this.skippedTools.set(packageName, skipped);
     }
   }
 
@@ -218,9 +297,27 @@ export class PersonalOrchestratorServer {
             const loadError = this.packageLoadErrors.get(name);
 
             if (loaded) {
+              const registeredCount = loaded.manifest.tools.length;
+              const skipped = this.skippedTools.get(name);
+              const skippedCount = skipped
+                ? skipped.allowlisted.length + skipped.writeGated.length
+                : 0;
+              const activeCount = registeredCount - skippedCount;
               lines.push(
-                `- **${name}**: ✓ Loaded (v${loaded.manifest.version}, ${loaded.manifest.tools.length} tools)`
+                `- **${name}**: ✓ Loaded (v${loaded.manifest.version}, ${activeCount}/${registeredCount} tools registered)`
               );
+              // Security config summary
+              const secParts: string[] = [];
+              if (pkg.allowed_tools) secParts.push(`allowlist: ${pkg.allowed_tools.length} tools`);
+              secParts.push(`writes: ${pkg.allow_writes ? 'enabled' : 'blocked'}`);
+              if (pkg.resource_scope) secParts.push(`scoped: ${pkg.resource_scope.param}`);
+              lines.push(`  Security: ${secParts.join(', ')}`);
+              if (skipped && skipped.writeGated.length > 0) {
+                lines.push(`  Write-gated: ${skipped.writeGated.join(', ')}`);
+              }
+              if (skipped && skipped.allowlisted.length > 0) {
+                lines.push(`  Allowlist-filtered: ${skipped.allowlisted.join(', ')}`);
+              }
             } else if (loadError) {
               lines.push(`- **${name}**: ✗ Failed to load`);
               lines.push(`  Error: ${loadError}`);
@@ -253,6 +350,13 @@ export class PersonalOrchestratorServer {
               loaded: boolean;
               version?: string;
               toolCount?: number;
+              registeredToolCount?: number;
+              security?: {
+                allowlist?: string[];
+                allow_writes: boolean;
+                resource_scope?: { param: string; allowed_count: number };
+                write_gated_tools?: string[];
+              };
               loadError?: string;
               validation?: {
                 pathExists: boolean;
@@ -284,11 +388,27 @@ export class PersonalOrchestratorServer {
             const loaded = this.loadedPackages.get(name);
             const loadError = this.packageLoadErrors.get(name);
 
+            const skipped = this.skippedTools.get(name);
+            const totalTools = loaded?.manifest.tools.length;
+            const skippedCount = skipped
+              ? skipped.allowlisted.length + skipped.writeGated.length
+              : 0;
+
             health.packages[name] = {
               enabled: pkg.enabled,
               loaded: !!loaded,
               version: loaded?.manifest.version,
-              toolCount: loaded?.manifest.tools.length,
+              toolCount: totalTools,
+              registeredToolCount: totalTools !== undefined ? totalTools - skippedCount : undefined,
+              security: pkg.enabled ? {
+                allowlist: pkg.allowed_tools,
+                allow_writes: pkg.allow_writes ?? false,
+                resource_scope: pkg.resource_scope ? {
+                  param: pkg.resource_scope.param,
+                  allowed_count: pkg.resource_scope.allowed.length,
+                } : undefined,
+                write_gated_tools: skipped?.writeGated.length ? skipped.writeGated : undefined,
+              } : undefined,
               loadError: loadError || undefined,
               validation: validation
                 ? {

@@ -7,28 +7,54 @@ schema_version: "1.0"
 
 packages:
   # Each package entry needs:
-  # - path: absolute path to the built package (must have dist/server/index.js)
+  # - path: absolute path to the built package (must have dist/lib/manifest.js)
   # - enabled: true/false to enable/disable the package's tools
+  #
+  # Security options (all optional):
+  # - allowed_tools: string[] — if present, only these tools are registered.
+  #     Omit to register all tools (default).
+  # - allow_writes: boolean — if true, tools tagged access: 'write' are registered.
+  #     Defaults to false (read-only). Write tools are invisible to the LLM when blocked.
+  # - resource_scope: { param, allowed[] } — validates a specific argument value
+  #     against an allowlist before calling the handler. Access denied if not in list.
 
   # Example: Content briefing package (Gmail + RSS + saved URLs)
   briefing:
     path: ~/path/to/mcp-content-feed
     enabled: true
+    allow_writes: true  # Enables save_for_later, clear_state, import_read_later
 
-  # Example: Travel booking package
-  travel:
-    path: ~/path/to/mcp-travel
-    enabled: false
+  # Example: Google Sheets with resource scoping
+  sheets:
+    path: ~/path/to/mcp-google-sheets
+    enabled: true
+    allow_writes: true
+    resource_scope:
+      param: spreadsheet_id
+      allowed:
+        - "your-spreadsheet-id-here"
 
-  # Add your own packages here:
+  # Example: Package with allowlist (only expose specific tools)
   # my-package:
   #   path: ~/path/to/my-package
   #   enabled: true
+  #   allowed_tools:
+  #     - tool_a
+  #     - tool_b
+
+  # Example: Read-only package (default — write tools hidden)
+  # analytics:
+  #   path: ~/path/to/mcp-analytics
+  #   enabled: true
+  #   # allow_writes defaults to false — write tools won't be registered
 
 settings:
   # Prefix tool names with package name (e.g., briefing_run_weekly_digest)
   # Recommended: true (prevents naming conflicts between packages)
   tool_prefix: true
 
-  # Log tool invocations for debugging
+  # Log tool invocations for debugging (JSONL format)
   log_invocations: false
+
+  # Optional: log to file instead of stderr
+  # log_file: /tmp/mcp-toolkit-hub.log

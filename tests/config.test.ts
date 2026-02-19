@@ -94,6 +94,75 @@ packages:
       );
       expect(config.packages.newsletter.path).not.toContain('~');
     });
+
+    it('should parse security config fields (allowed_tools, allow_writes, resource_scope)', async () => {
+      const validConfig = `
+schema_version: "1.0"
+packages:
+  sheets:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    enabled: true
+    allowed_tools:
+      - list_sheets
+      - get_data
+    allow_writes: true
+    resource_scope:
+      param: spreadsheet_id
+      allowed:
+        - "abc123"
+        - "def456"
+settings:
+  log_invocations: true
+  log_file: /tmp/mcp.log
+`;
+      vi.mocked(fs.readFile).mockResolvedValue(validConfig);
+
+      const config = await loadConfig();
+
+      expect(config.packages.sheets.allowed_tools).toEqual(['list_sheets', 'get_data']);
+      expect(config.packages.sheets.allow_writes).toBe(true);
+      expect(config.packages.sheets.resource_scope).toEqual({
+        param: 'spreadsheet_id',
+        allowed: ['abc123', 'def456'],
+      });
+      expect(config.settings?.log_file).toBe('/tmp/mcp.log');
+    });
+
+    it('should default allow_writes to false when not specified', async () => {
+      const validConfig = `
+schema_version: "1.0"
+packages:
+  newsletter:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    enabled: true
+`;
+      vi.mocked(fs.readFile).mockResolvedValue(validConfig);
+
+      const config = await loadConfig();
+
+      expect(config.packages.newsletter.allow_writes).toBe(false);
+    });
+
+    it('should accept config without security fields (backwards compatible)', async () => {
+      const validConfig = `
+schema_version: "1.0"
+packages:
+  newsletter:
+    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    enabled: true
+settings:
+  tool_prefix: true
+  log_invocations: false
+`;
+      vi.mocked(fs.readFile).mockResolvedValue(validConfig);
+
+      const config = await loadConfig();
+
+      expect(config.packages.newsletter.allowed_tools).toBeUndefined();
+      expect(config.packages.newsletter.allow_writes).toBe(false);
+      expect(config.packages.newsletter.resource_scope).toBeUndefined();
+      expect(config.settings?.log_file).toBeUndefined();
+    });
   });
 
   describe('getEnabledPackages', () => {

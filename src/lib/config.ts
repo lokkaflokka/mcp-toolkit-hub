@@ -11,9 +11,17 @@ import { z } from 'zod';
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'mcp-toolkit-hub');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
 
+const ResourceScopeSchema = z.object({
+  param: z.string(),
+  allowed: z.array(z.string()),
+});
+
 const PackageConfigSchema = z.object({
   path: z.string(),
   enabled: z.boolean().default(true),
+  allowed_tools: z.array(z.string()).optional(),
+  allow_writes: z.boolean().default(false),
+  resource_scope: ResourceScopeSchema.optional(),
 });
 
 const ConfigSchema = z.object({
@@ -23,6 +31,7 @@ const ConfigSchema = z.object({
     .object({
       tool_prefix: z.boolean().default(true),
       log_invocations: z.boolean().default(false),
+      log_file: z.string().optional(),
     })
     .optional(),
 });

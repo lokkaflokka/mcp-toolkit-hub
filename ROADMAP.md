@@ -2,7 +2,7 @@
 
 Hub orchestrator for personal MCP packages.
 
-## Current: v0.4.0 (Robustness)
+## Completed: Through v0.6.0
 
 - [x] Basic hub routing
 - [x] Config-based package registration

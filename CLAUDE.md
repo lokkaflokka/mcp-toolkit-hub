@@ -67,13 +67,22 @@ This package loads and delegates to other packages — it's the trust boundary b
 - Report package health without leaking internal details
 - Include load errors so users can diagnose issues
 
-### Pre-Commit Checklist
+### Pre-Commit Verification Loop
 
-Before any commit, ask these 4 questions:
+Run this sequence before every commit:
+```bash
+npm test && npm run build
+```
+
+Then ask these 4 questions:
 1. **Data leak?** Could this change expose personal config paths, package internals, or user data?
 2. **Crash path?** Could a missing package, bad config, or malformed tool call crash the hub?
 3. **Actionable errors?** Are all error messages helpful without exposing sensitive details?
 4. **Credential trust?** Would I run this code routing to my own packages with my own data?
+
+### Distribution Boundaries
+
+**Never commit:** Personal config (`~/.config/mcp-toolkit-hub/config.yaml`), personal package paths, user-specific data. The `examples/` directory provides templates; personal config stays local.
 
 ## Development
 
@@ -138,4 +147,7 @@ claude mcp add -s user personal node /path/to/mcp-toolkit-hub/dist/server/index.
 - **Don't duplicate domain logic** — The hub delegates to packages. If you find yourself reimplementing scoring, state management, or domain rules here, stop and put it in the domain package.
 - **Don't swallow load errors** — Every package load failure must be surfaced somewhere (status tool, logs). Silent failures make debugging impossible.
 - **Don't hardcode package paths** — Always read from config. The `NEWSLETTER_PACKAGE` constant pattern should be replaced with config-driven paths.
-- **Don't forget to rebuild** — After committing source changes, run `npm run build`. The MCP server runs from `dist/`, not `src/`.
+- **Don't forget to rebuild** — After committing source changes, run `npm run build`. The MCP server runs from `dist/`, not `src/`. Stale `dist/` = stale MCP tools.
+- **Don't add project-scoped MCP servers** — All MCP servers go through the hub. Adding servers to `.claude.json` `projects.*.mcpServers` creates directory-scoped silos. (Feb 15: Google Sheets was project-scoped to finance/, unavailable from Projects/ level.)
+- **Don't register tools without parameter bounds** — Numeric params from LLM output must have min/max in the schema. `schema-sync.test.ts` enforces this.
+- **Don't import domain packages at top level** — Use dynamic `import()` inside try-catch. Top-level imports cause the entire hub to crash if one package is missing or not built.
