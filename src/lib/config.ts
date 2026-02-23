@@ -8,8 +8,8 @@ import * as os from 'os';
 import * as yaml from 'yaml';
 import { z } from 'zod';
 
-const CONFIG_DIR = path.join(os.homedir(), '.config', 'mcp-toolkit-hub');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.yaml');
+const CONFIG_FILE = process.env.MCP_HUB_CONFIG ??
+  path.join(os.homedir(), '.config', 'mcp-toolkit-hub', 'config.yaml');
 
 const ResourceScopeSchema = z.object({
   param: z.string(),
@@ -151,7 +151,7 @@ export async function validatePackages(config: OrchestratorConfig): Promise<Pack
       await fs.access(expandedPath);
       pathExists = true;
     } catch {
-      error = `Package '${name}' path doesn't exist: ${expandedPath}. Check config at ${CONFIG_FILE}`;
+      error = `Package '${name}' path doesn't exist: ${expandedPath}. Check config at ${CONFIG_FILE} (override via MCP_HUB_CONFIG env var)`;
     }
 
     if (pathExists) {
