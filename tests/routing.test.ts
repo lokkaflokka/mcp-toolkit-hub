@@ -10,6 +10,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as path from 'path';
 import * as os from 'os';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const MOCK_BRIEFING_PATH = path.join(__dirname, 'fixtures/mock-briefing');
 
 // Mock fs/promises before importing
 vi.mock('fs/promises', () => ({
@@ -57,7 +61,7 @@ describe('Routing', () => {
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
     allow_writes: true
 `;
@@ -86,7 +90,7 @@ packages:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: false
 `;
       vi.mocked(fs.readFile).mockResolvedValue(configYaml);

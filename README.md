@@ -58,10 +58,10 @@ Edit `~/.config/mcp-toolkit-hub/config.yaml`:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ~/path/to/mcp-content-feed
     enabled: true
   travel:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-travel
+    path: ~/path/to/mcp-travel
     enabled: false  # Disabled packages don't expose tools
 ```
 
@@ -96,8 +96,8 @@ npm test       # Run tests
 
 ## Related Packages
 
-- [mcp-content-feed](https://github.com/lokkaflokka/mcp-content-feed) — Content scoring and briefing (Gmail + RSS + saved URLs)
-- [mcp-travel](https://github.com/lokkaflokka/mcp-travel) — Flight search and price tracking
+- **mcp-content-feed** — Content scoring and briefing (Gmail + RSS + saved URLs)
+- **mcp-travel** — Flight search and price tracking
 
 ## License
 

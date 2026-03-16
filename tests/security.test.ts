@@ -10,6 +10,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const MOCK_BRIEFING_PATH = path.join(__dirname, 'fixtures/mock-briefing');
+const MOCK_SHEETS_PATH = path.join(__dirname, 'fixtures/mock-sheets');
 
 // Mock fs/promises before importing
 vi.mock('fs/promises', () => ({
@@ -60,7 +66,7 @@ describe('Security Guardrails', () => {
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
     allowed_tools:
       - run_weekly_digest
@@ -89,7 +95,7 @@ packages:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
     allow_writes: true
 `;
@@ -115,7 +121,7 @@ packages:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(configYaml);
@@ -143,7 +149,7 @@ packages:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
     allow_writes: true
 `;
@@ -169,7 +175,7 @@ packages:
 schema_version: "1.0"
 packages:
   sheets:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    path: ${MOCK_SHEETS_PATH}
     enabled: true
     resource_scope:
       param: spreadsheet_id
@@ -204,7 +210,7 @@ packages:
 schema_version: "1.0"
 packages:
   sheets:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    path: ${MOCK_SHEETS_PATH}
     enabled: true
     resource_scope:
       param: spreadsheet_id
@@ -236,7 +242,7 @@ packages:
 schema_version: "1.0"
 packages:
   sheets:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    path: ${MOCK_SHEETS_PATH}
     enabled: true
     resource_scope:
       param: spreadsheet_id
@@ -269,7 +275,7 @@ packages:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
     allow_writes: true
 settings:
@@ -316,7 +322,7 @@ settings:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
 settings:
   log_invocations: true
@@ -350,7 +356,7 @@ settings:
 schema_version: "1.0"
 packages:
   briefing:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ${MOCK_BRIEFING_PATH}
     enabled: true
 settings:
   log_invocations: false
@@ -391,7 +397,7 @@ settings:
 schema_version: "1.0"
 packages:
   sheets:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    path: ${MOCK_SHEETS_PATH}
     enabled: true
     allow_writes: true
     resource_scope:
@@ -424,7 +430,7 @@ packages:
 schema_version: "1.0"
 packages:
   sheets:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    path: ${MOCK_SHEETS_PATH}
     enabled: true
     resource_scope:
       param: spreadsheet_id

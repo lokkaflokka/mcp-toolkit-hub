@@ -81,7 +81,7 @@ packages:
 schema_version: "1.0"
 packages:
   newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ~/packages/mcp-content-feed
     enabled: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(validConfig);
@@ -90,7 +90,7 @@ packages:
 
       // Path should be expanded to use actual home directory
       expect(config.packages.newsletter.path).toBe(
-        path.join(os.homedir(), 'mcp_personal_dev/mcp-authored/mcp-content-feed')
+        path.join(os.homedir(), 'packages/mcp-content-feed')
       );
       expect(config.packages.newsletter.path).not.toContain('~');
     });
@@ -100,7 +100,7 @@ packages:
 schema_version: "1.0"
 packages:
   sheets:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-google-sheets
+    path: ~/packages/mcp-google-sheets
     enabled: true
     allowed_tools:
       - list_sheets
@@ -133,7 +133,7 @@ settings:
 schema_version: "1.0"
 packages:
   newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ~/packages/mcp-content-feed
     enabled: true
 `;
       vi.mocked(fs.readFile).mockResolvedValue(validConfig);
@@ -148,7 +148,7 @@ packages:
 schema_version: "1.0"
 packages:
   newsletter:
-    path: ~/mcp_personal_dev/mcp-authored/mcp-content-feed
+    path: ~/packages/mcp-content-feed
     enabled: true
 settings:
   tool_prefix: true
