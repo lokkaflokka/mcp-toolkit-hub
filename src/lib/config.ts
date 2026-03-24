@@ -76,6 +76,11 @@ export async function loadConfig(): Promise<OrchestratorConfig> {
       };
     }
 
+    // Expand settings paths
+    if (validated.settings?.log_file) {
+      validated.settings.log_file = expandPath(validated.settings.log_file);
+    }
+
     return validated;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {

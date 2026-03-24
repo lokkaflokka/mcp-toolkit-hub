@@ -143,6 +143,27 @@ packages:
       expect(config.packages.newsletter.allow_writes).toBe(false);
     });
 
+    it('should expand tilde in settings.log_file', async () => {
+      const validConfig = `
+schema_version: "1.0"
+packages:
+  newsletter:
+    path: ~/packages/mcp-content-feed
+    enabled: true
+settings:
+  log_invocations: true
+  log_file: ~/Library/Logs/mcp-toolkit-hub.jsonl
+`;
+      vi.mocked(fs.readFile).mockResolvedValue(validConfig);
+
+      const config = await loadConfig();
+
+      expect(config.settings?.log_file).toBe(
+        path.join(os.homedir(), 'Library/Logs/mcp-toolkit-hub.jsonl')
+      );
+      expect(config.settings?.log_file).not.toContain('~');
+    });
+
     it('should accept config without security fields (backwards compatible)', async () => {
       const validConfig = `
 schema_version: "1.0"
